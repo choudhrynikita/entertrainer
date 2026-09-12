@@ -3,11 +3,11 @@ import { fadeEdges, floatToInt16, int16ToFloat, mixToMono, resample } from "./au
 
 /** Residual vector quantizer — SoundStream-shaped, analytic codebooks (no giant weight file). */
 export const CODEC_RATE = 8000;
-export const FRAME = 160; // 20 ms @ 8 kHz
-export const BANDS = 6;
-export const BAND = Math.floor(FRAME / 2 / BANDS); // 13 bins (we use 78 of 80 unique DCT bins)
+export const FRAME = 320; // 40 ms @ 8 kHz — speech-rate, 30s fits the mosaic
+export const BANDS = 4;
+export const BAND = Math.floor(FRAME / 2 / BANDS);
 export const CODEBOOK = 256;
-export const BYTES_PER_FRAME = BANDS * 2; // shape + gain per band
+export const BYTES_PER_FRAME = BANDS * 2;
 export const BITS_PER_SEC = BYTES_PER_FRAME * (CODEC_RATE / FRAME) * 8;
 
 const SHAPES: Float32Array[] = [];

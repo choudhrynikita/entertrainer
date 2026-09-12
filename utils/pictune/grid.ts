@@ -5,6 +5,7 @@ export function isFinder(x: number, y: number, n: number): boolean {
   return hit(0, 0) || hit(n - FINDER, 0) || hit(0, n - FINDER);
 }
 
+/** 1-module ink collar around each finder so gold data cannot swallow the ring. */
 export function isSeparator(x: number, y: number, n: number): boolean {
   if (isFinder(x, y, n)) return false;
   const near = (x0: number, y0: number, s: number) => x >= x0 && x < x0 + s && y >= y0 && y < y0 + s;
@@ -27,7 +28,46 @@ export function isCenter(x: number, y: number, n: number): boolean {
 }
 
 export function isReserved(x: number, y: number, n: number): boolean {
-  return isFinder(x, y, n) || isTiming(x, y, n) || isAlign(x, y, n) || isCenter(x, y, n);
+  return (
+    isFinder(x, y, n) ||
+    isSeparator(x, y, n) ||
+    isTiming(x, y, n) ||
+    isAlign(x, y, n) ||
+    isCenter(x, y, n) ||
+    isKey(x, y, n) ||
+    isFormat(x, y, n)
+  );
+}
+
+/** Dual 2×8 color ladders — JPEG shifts are inverted from these swatches. */
+export function keyIndex(x: number, y: number, n: number): number {
+  const ly = y - 8;
+  if (ly < 0 || ly >= 16) return -1;
+  const left = x >= 8 && x <= 9;
+  const right = x >= n - 10 && x <= n - 9;
+  if (!left && !right) return -1;
+  return Math.floor(ly / 2);
+}
+
+export function isKey(x: number, y: number, n: number): boolean {
+  return keyIndex(x, y, n) >= 0;
+}
+
+export function formatIndex(x: number, y: number, n: number): number {
+  if (y !== 7) return -1;
+  if (x >= 8 && x < 14) return x - 8;
+  if (x >= n - 14 && x < n - 8) return x - (n - 14);
+  return -1;
+}
+
+export function isFormat(x: number, y: number, n: number): boolean {
+  return formatIndex(x, y, n) >= 0;
+}
+
+export function formatSymbol(n: number, i: number): number {
+  const step = Math.max(0, (n - MIN_GRID) / 8);
+  const trio = [step & 7, (step >> 3) & 7, (step ^ (step >> 3)) & 7];
+  return trio[i % 3]!;
 }
 
 export function dataCells(n: number): [number, number][] {

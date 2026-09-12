@@ -4,6 +4,7 @@ import { dataCapacityBytes, gridForBytes, bytesToSymbols, symbolsToBytes } from 
 import { findFinders, sampleGrid } from "./locate";
 import {
   HEADER_BYTES,
+  HOLD_SECONDS,
   MAX_GRID,
   PicTuneError,
   packHeader,
@@ -39,7 +40,7 @@ export function pngFromRgba(rgba: Uint8ClampedArray | Uint8Array, width: number,
     rgb[j + 1] = rgba[i + 1]!;
     rgb[j + 2] = rgba[i + 2]!;
   }
-  return encodePngRgb(width, height, rgb, { Software: "PicTune", "PT-Magic": "PICTUNE3" });
+  return encodePngRgb(width, height, rgb, { Software: "PicTune", "PT-Magic": "PICTUNE4" });
 }
 
 export function rgbaFromRgb(rgb: Uint8Array, width: number, height: number): Uint8ClampedArray {
@@ -57,7 +58,7 @@ export function holdableSeconds(): number {
   const cap = dataCapacityBytes(MAX_GRID);
   const inner = Math.floor(cap / 2) - 8;
   const payload = Math.max(0, inner - HEADER_BYTES);
-  return payload / (BITS_PER_SEC / 8);
+  return Math.min(HOLD_SECONDS, payload / (BITS_PER_SEC / 8));
 }
 
 export function encodePicTune(input: { pcm: Int16Array; sampleRate: number }): EncodeOutput {

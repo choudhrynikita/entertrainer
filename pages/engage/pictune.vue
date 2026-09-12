@@ -296,6 +296,7 @@ onBeforeUnmount(() => {
               </span>
               <span class="pt__rec-label">{{ recState === 'recording' ? 'stop' : 'record' }}</span>
             </button>
+            <p v-if="recState !== 'recording'" class="pt__hint">up to {{ Math.round(holdableSeconds()) }} seconds</p>
             <button v-if="recState !== 'recording'" type="button" class="pt__ghost" @click="audioInput?.click()">or use a clip</button>
             <button v-if="recState !== 'recording'" type="button" class="pt__ghost" @click="void trySample()">{{ busy ?? 'or try a sample' }}</button>
           </template>

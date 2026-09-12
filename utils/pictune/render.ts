@@ -1,5 +1,18 @@
 import { ALIGN, CANVAS, CENTER, FINDER, PALETTE, QUIET } from "./protocol";
-import { alignColor, finderColor, isAlign, isCenter, isFinder, isTiming } from "./grid";
+import {
+  alignColor,
+  finderColor,
+  formatIndex,
+  formatSymbol,
+  isAlign,
+  isCenter,
+  isFinder,
+  isFormat,
+  isKey,
+  isSeparator,
+  isTiming,
+  keyIndex,
+} from "./grid";
 
 function setPx(rgba: Uint8ClampedArray, w: number, x: number, y: number, rgb: readonly [number, number, number]) {
   if (x < 0 || y < 0 || x >= w || y >= w) return;
@@ -87,41 +100,64 @@ export function renderGrid(symbols: Uint8Array, n: number): {
   module: number;
 } {
   const cells = n + QUIET * 2;
-  const module = Math.max(6, Math.floor(CANVAS / cells));
-  const width = module * cells;
+  const width = CANVAS;
+  const module = width / cells;
   const rgba = new Uint8ClampedArray(width * width * 4);
   const ink = PALETTE[0]!;
   fillRect(rgba, width, 0, 0, width, width, ink);
 
   const origin = QUIET * module;
+  const solid = module < 12;
+
+  const cellRect = (x: number, y: number) => {
+    const x0 = Math.round(origin + x * module);
+    const y0 = Math.round(origin + y * module);
+    const x1 = Math.round(origin + (x + 1) * module);
+    const y1 = Math.round(origin + (y + 1) * module);
+    return [x0, y0, x1 - x0, y1 - y0] as const;
+  };
 
   for (let y = 0; y < n; y++) {
     for (let x = 0; x < n; x++) {
       let color = symbols[y * n + x] ?? 0;
+      let reserved = false;
       if (isFinder(x, y, n)) {
         const lx = x < FINDER ? x : x - (n - FINDER);
         const ly = y < FINDER ? y : y - (n - FINDER);
         color = finderColor(lx, ly);
+        reserved = true;
+      } else if (isSeparator(x, y, n)) {
+        color = 0;
+        reserved = true;
       } else if (isAlign(x, y, n)) {
         const a0 = n - ALIGN - 2;
         color = alignColor(x - a0, y - a0);
+        reserved = true;
       } else if (isTiming(x, y, n)) {
         color = (x + y) % 2 === 0 ? 2 : 0;
+        reserved = true;
+      } else if (isKey(x, y, n)) {
+        color = keyIndex(x, y, n);
+        reserved = true;
+      } else if (isFormat(x, y, n)) {
+        color = formatSymbol(n, formatIndex(x, y, n));
+        reserved = true;
       } else if (isCenter(x, y, n)) {
         continue;
       }
       const rgb = PALETTE[color] ?? ink;
-      if (isFinder(x, y, n) || isAlign(x, y, n) || isTiming(x, y, n)) {
-        fillRect(rgba, width, origin + x * module, origin + y * module, module, module, rgb);
+      const [px, py, pw, ph] = cellRect(x, y);
+      if (reserved || solid) {
+        fillRect(rgba, width, px, py, pw, ph, rgb);
       } else {
         const inset = Math.max(1, Math.round(module * 0.08));
         fillRect(
           rgba,
           width,
-          origin + x * module + inset,
-          origin + y * module + inset,
-          module - inset * 2,
-          module - inset * 2,
+          px + inset,
+          py + inset,
+          pw - inset * 2,
+          ph - inset * 2,
           rgb,
           Math.round(module * 0.28),
         );
@@ -135,8 +171,8 @@ export function renderGrid(symbols: Uint8Array, n: number): {
   drawPt(rgba, width, ccx, ccy, (CENTER * module) / 2);
 
   const gold = PALETTE[2]!;
-  const frame = origin - 3;
-  const span = n * module + 6;
+  const frame = Math.round(origin) - 3;
+  const span = Math.round(n * module) + 6;
   fillRect(rgba, width, frame, frame, span, 2, gold);
   fillRect(rgba, width, frame, frame + span - 2, span, 2, gold);
   fillRect(rgba, width, frame, frame, 2, span, gold);

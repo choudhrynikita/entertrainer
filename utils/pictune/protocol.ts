@@ -1,10 +1,11 @@
 import { crc32 } from "./crc32";
 
-export const MAGIC = "PICTUNE3";
-export const VERSION = 3;
+export const MAGIC = "PICTUNE4";
+export const VERSION = 4;
 export const HEADER_BYTES = 48;
 export const TARGET_RATE = 16000;
-export const CANVAS = 1400;
+export const CANVAS = 1600;
+export const HOLD_SECONDS = 30;
 export const QUIET = 4;
 export const FINDER = 7;
 export const ALIGN = 5;
@@ -69,7 +70,7 @@ export function packHeader(h: {
 export function unpackHeader(bytes: Uint8Array): PicTuneHeader {
   if (bytes.length < HEADER_BYTES) throw new PicTuneError("this isn't a pictune.");
   const magic = String.fromCharCode(...bytes.subarray(0, 8));
-  if (magic === "PICTUNE1" || magic === "PICTUNE2") {
+  if (magic === "PICTUNE1" || magic === "PICTUNE2" || magic === "PICTUNE3") {
     throw new PicTuneError("this pictune is from an older studio — make a new one.");
   }
   if (magic !== MAGIC) throw new PicTuneError("this isn't a pictune.");
@@ -98,18 +99,24 @@ export function payloadCrc(bytes: Uint8Array): number {
   return crc32(bytes);
 }
 
-export function nearestPalette(r: number, g: number, b: number): number {
+export function nearestPalette(
+  r: number,
+  g: number,
+  b: number,
+  palette: readonly (readonly [number, number, number])[] = PALETTE,
+): number {
   let best = 0;
   let bestD = Infinity;
-  for (let i = 0; i < PALETTE.length; i++) {
-    const p = PALETTE[i]!;
+  for (let i = 0; i < palette.length; i++) {
+    const p = palette[i]!;
     const y = 0.299 * r + 0.587 * g + 0.114 * b;
     const py = 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2];
     const cb = 0.564 * (b - y);
     const cr = 0.713 * (r - y);
     const pcb = 0.564 * (p[2] - py);
     const pcr = 0.713 * (p[0] - py);
-    const d = (y - py) * (y - py) * 0.6 + (cb - pcb) * (cb - pcb) * 1.6 + (cr - pcr) * (cr - pcr) * 1.6;
+    const d =
+      (y - py) * (y - py) * 0.6 + (cb - pcb) * (cb - pcb) * 1.6 + (cr - pcr) * (cr - pcr) * 1.6;
     if (d < bestD) {
       bestD = d;
       best = i;

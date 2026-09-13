@@ -1,4 +1,4 @@
-import { FINDER, MAX_GRID, MIN_GRID, PALETTE, nearestPalette, QUIET } from "./protocol";
+import { FINDER, MAX_GRID, MIN_GRID, DATA_BASE, chromaSymbol, GOLD, QUIET } from "./protocol";
 import { PicTuneError } from "./protocol";
 import { finderColor, formatSymbol, isKey, isTiming, keyIndex } from "./grid";
 
@@ -335,8 +335,8 @@ function scoreFormat(rgba: Uint8ClampedArray, w: number, h: number, q: Quad, n: 
     const expect = formatSymbol(n, i);
     const [ax, ay] = map(8 + i, 7);
     const [bx, by] = map(n - 14 + i, 7);
-    if (nearestPalette(...sampleRgb(rgba, w, h, ax, ay)) === expect) ok++;
-    if (nearestPalette(...sampleRgb(rgba, w, h, bx, by)) === expect) ok++;
+    if (chromaSymbol(...sampleRgb(rgba, w, h, ax, ay)) === expect) ok++;
+    if (chromaSymbol(...sampleRgb(rgba, w, h, bx, by)) === expect) ok++;
   }
   return ok / 12;
 }
@@ -644,11 +644,85 @@ export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Find
 }
 
 function keysLookValid(observed: readonly (readonly [number, number, number])[]): boolean {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 4; i++) {
     const p = observed[i]!;
-    if (nearestPalette(p[0], p[1], p[2], PALETTE) !== i) return false;
+    if (chromaSymbol(p[0], p[1], p[2], DATA_BASE) !== i) return false;
   }
   return true;
+}
+
+function sampleAligned(
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
+  tl: Finder,
+  tr: Finder,
+  bl: Finder,
+): { grid: Uint8Array; n: number } | null {
+  const ang = Math.atan2(tr.y - tl.y, tr.x - tl.x);
+  if (Math.abs(ang) > 0.05 && Math.abs(Math.abs(ang) - Math.PI) > 0.05) return null;
+  const side = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  if (side < 40) return null;
+  let bestN = 0;
+  let bestS = -1;
+  let bestMod = 0;
+  for (let cand = MIN_GRID; cand <= MAX_GRID; cand += 8) {
+    const module = side / (cand - FINDER);
+    const q: Quad = {
+      tl: { x: tl.x, y: tl.y, size: module * FINDER },
+      tr: { x: tr.x, y: tr.y, size: module * FINDER },
+      bl: { x: bl.x, y: bl.y, size: module * FINDER },
+    };
+    const s = scoreTiming(rgba, w, h, q, cand) * 2 + scoreFormat(rgba, w, h, q, cand);
+    if (s > bestS) {
+      bestS = s;
+      bestN = cand;
+      bestMod = module;
+    }
+  }
+  if (!bestN || bestS < 0.4) return null;
+  const originX = tl.x - 3.5 * bestMod;
+  const originY = tl.y - 3.5 * bestMod;
+  const rgbGrid = new Float32Array(bestN * bestN * 3);
+  const inset = Math.max(1, bestMod * 0.18);
+  for (let my = 0; my < bestN; my++) {
+    for (let mx = 0; mx < bestN; mx++) {
+      const cx = originX + (mx + 0.5) * bestMod;
+      const cy = originY + (my + 0.5) * bestMod;
+      const [r, g, b] = cellMeanRgb(rgba, w, h, cx - inset, cy - inset, cx + inset, cy + inset);
+      const o = (my * bestN + mx) * 3;
+      rgbGrid[o] = r;
+      rgbGrid[o + 1] = g;
+      rgbGrid[o + 2] = b;
+    }
+  }
+  return classifyGrid(rgbGrid, bestN);
+}
+
+function classifyGrid(rgbGrid: Float32Array, gridN: number): { grid: Uint8Array; n: number } {
+  const observed: [number, number, number][] = DATA_BASE.map((p) => [p[0], p[1], p[2]]);
+  const acc = Array.from({ length: 4 }, () => [0, 0, 0, 0]);
+  for (let my = 0; my < gridN; my++) {
+    for (let mx = 0; mx < gridN; mx++) {
+      if (!isKey(mx, my, gridN)) continue;
+      const ki = keyIndex(mx, my, gridN);
+      const o = (my * gridN + mx) * 3;
+      acc[ki]![0] += rgbGrid[o]!;
+      acc[ki]![1] += rgbGrid[o + 1]!;
+      acc[ki]![2] += rgbGrid[o + 2]!;
+      acc[ki]![3] += 1;
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = acc[i]!;
+    if (a[3]! >= 2) observed[i] = [a[0]! / a[3]!, a[1]! / a[3]!, a[2]! / a[3]!];
+  }
+  const palette = keysLookValid(observed) ? observed : DATA_BASE;
+  const grid = new Uint8Array(gridN * gridN);
+  for (let i = 0; i < gridN * gridN; i++) {
+    grid[i] = chromaSymbol(rgbGrid[i * 3]!, rgbGrid[i * 3 + 1]!, rgbGrid[i * 3 + 2]!, palette);
+  }
+  return { grid, n: gridN };
 }
 
 export function sampleGrid(
@@ -659,6 +733,8 @@ export function sampleGrid(
 ): { grid: Uint8Array; n: number } {
   if (finders.length < 3) throw new PicTuneError("couldn't read this pictune. try a clearer photo.");
   const [tl0, tr0, bl0] = orderFinders(finders[0]!, finders[1]!, finders[2]!);
+  const aligned = sampleAligned(rgba, w, h, tl0, tr0, bl0);
+  if (aligned) return aligned;
   const side = Math.hypot(tr0.x - tl0.x, tr0.y - tl0.y);
 
   const ranked: { cand: number; finder: number; size: number; module: number }[] = [];
@@ -714,8 +790,8 @@ export function sampleGrid(
     }
   }
 
-  const observed: [number, number, number][] = PALETTE.map((p) => [p[0], p[1], p[2]]);
-  const acc = Array.from({ length: 8 }, () => [0, 0, 0, 0]);
+  const observed: [number, number, number][] = DATA_BASE.map((p) => [p[0], p[1], p[2]]);
+  const acc = Array.from({ length: 4 }, () => [0, 0, 0, 0]);
   for (let my = 0; my < gridN; my++) {
     for (let mx = 0; mx < gridN; mx++) {
       if (!isKey(mx, my, gridN)) continue;
@@ -727,18 +803,19 @@ export function sampleGrid(
       acc[ki]![3] += 1;
     }
   }
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 4; i++) {
     const a = acc[i]!;
     if (a[3]! >= 2) {
       observed[i] = [a[0]! / a[3]!, a[1]! / a[3]!, a[2]! / a[3]!];
     }
   }
-  const palette = keysLookValid(observed) ? observed : PALETTE;
+  const palette = keysLookValid(observed) ? observed : DATA_BASE;
 
   const grid = new Uint8Array(gridN * gridN);
   for (let i = 0; i < gridN * gridN; i++) {
-    grid[i] = nearestPalette(rgbGrid[i * 3]!, rgbGrid[i * 3 + 1]!, rgbGrid[i * 3 + 2]!, palette);
+    grid[i] = chromaSymbol(rgbGrid[i * 3]!, rgbGrid[i * 3 + 1]!, rgbGrid[i * 3 + 2]!, palette);
   }
+  void GOLD;
   void QUIET;
   return { grid, n: gridN };
 }

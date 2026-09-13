@@ -12,11 +12,7 @@ for (let i = 0; i < 256; i++) {
 export function crc32(data: Uint8Array, seed = 0): number {
   let c = (seed ^ 0xffffffff) >>> 0;
   for (let i = 0; i < data.length; i++) {
-    c = TABLE[(c ^ data[i]) & 0xff] ^ (c >>> 8);
+    c = TABLE[(c ^ data[i]!) & 0xff] ^ (c >>> 8);
   }
   return (c ^ 0xffffffff) >>> 0;
-}
-
-export function crc32Update(crc: number, data: Uint8Array): number {
-  return crc32(data, crc);
 }

@@ -1,5 +1,13 @@
 import { decodePngRgb, isPng } from "./png";
-import { decodePicTune, encodePicTune, pngFromRgba, rgbaFromRgb, type DecodeOutput, type EncodeOutput } from "./codec";
+import {
+  decodeFromPayload,
+  decodePicTune,
+  encodePicTune,
+  pngFromRgba,
+  rgbaFromRgb,
+  type DecodeOutput,
+  type EncodeOutput,
+} from "./codec";
 import { PicTuneError } from "./protocol";
 
 function blobUrl(bytes: Uint8Array, mime: string): string {
@@ -47,14 +55,6 @@ export async function makePicTune(input: { pcm: Int16Array; sampleRate: number }
   return encodePicTune(input);
 }
 
-function tryDecode(
-  rgba: Uint8ClampedArray,
-  width: number,
-  height: number,
-): DecodeOutput {
-  return decodePicTune(rgba, width, height);
-}
-
 export async function openPicTuneFile(file: File): Promise<DecodeOutput & { url: string }> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const mime = file.type || "image/png";
@@ -65,7 +65,15 @@ export async function openPicTuneFile(file: File): Promise<DecodeOutput & { url:
     try {
       const png = decodePngRgb(bytes);
       const rgba = rgbaFromRgb(png.rgb, png.width, png.height);
-      const dec = tryDecode(rgba, png.width, png.height);
+      if (png.payload && png.payload.length > 8) {
+        try {
+          const dec = decodeFromPayload(png.payload, rgba, png.width, png.height);
+          return { ...dec, url };
+        } catch (err) {
+          errors.push(err instanceof Error ? err.message : "chunk");
+        }
+      }
+      const dec = decodePicTune(rgba, png.width, png.height);
       return { ...dec, url };
     } catch (err) {
       errors.push(err instanceof Error ? err.message : "png");
@@ -74,7 +82,7 @@ export async function openPicTuneFile(file: File): Promise<DecodeOutput & { url:
 
   try {
     const raster = await rasterize(file);
-    const dec = tryDecode(raster.rgba, raster.width, raster.height);
+    const dec = decodePicTune(raster.rgba, raster.width, raster.height);
     return { ...dec, url };
   } catch (err) {
     errors.push(err instanceof Error ? err.message : "image");

@@ -1,11 +1,10 @@
-import { ALIGN, BITS, CENTER, FINDER, MAX_GRID, MIN_GRID, PALETTE } from "./protocol";
+import { ALIGN, BITS, CENTER, FINDER, MAX_GRID, MIN_GRID } from "./protocol";
 
 export function isFinder(x: number, y: number, n: number): boolean {
   const hit = (x0: number, y0: number) => x >= x0 && x < x0 + FINDER && y >= y0 && y < y0 + FINDER;
   return hit(0, 0) || hit(n - FINDER, 0) || hit(0, n - FINDER);
 }
 
-/** 1-module ink collar around each finder so gold data cannot swallow the ring. */
 export function isSeparator(x: number, y: number, n: number): boolean {
   if (isFinder(x, y, n)) return false;
   const near = (x0: number, y0: number, s: number) => x >= x0 && x < x0 + s && y >= y0 && y < y0 + s;
@@ -27,8 +26,14 @@ export function isCenter(x: number, y: number, n: number): boolean {
   return x >= c0 && x < c0 + CENTER && y >= c0 && y < c0 + CENTER;
 }
 
+export function isOutside(x: number, y: number, n: number): boolean {
+  const cx = (n - 1) / 2;
+  const cy = (n - 1) / 2;
+  return Math.hypot(x - cx, y - cy) > n * 0.5 - 1.7;
+}
+
 export function isReserved(x: number, y: number, n: number): boolean {
-  return (
+  if (
     isFinder(x, y, n) ||
     isSeparator(x, y, n) ||
     isTiming(x, y, n) ||
@@ -36,13 +41,15 @@ export function isReserved(x: number, y: number, n: number): boolean {
     isCenter(x, y, n) ||
     isKey(x, y, n) ||
     isFormat(x, y, n)
-  );
+  ) {
+    return true;
+  }
+  return isOutside(x, y, n);
 }
 
-/** Dual 2×8 color ladders — JPEG shifts are inverted from these swatches. */
 export function keyIndex(x: number, y: number, n: number): number {
   const ly = y - 8;
-  if (ly < 0 || ly >= 16) return -1;
+  if (ly < 0 || ly >= 8) return -1;
   const left = x >= 8 && x <= 9;
   const right = x >= n - 10 && x <= n - 9;
   if (!left && !right) return -1;
@@ -66,8 +73,7 @@ export function isFormat(x: number, y: number, n: number): boolean {
 
 export function formatSymbol(n: number, i: number): number {
   const step = Math.max(0, (n - MIN_GRID) / 8);
-  const trio = [step & 7, (step >> 3) & 7, (step ^ (step >> 3)) & 7];
-  return trio[i % 3]!;
+  return (step >> (2 * (i % 3))) & 3;
 }
 
 export function dataCells(n: number): [number, number][] {
@@ -92,11 +98,11 @@ export function gridForBytes(need: number): number {
 }
 
 export function maskSymbol(raw: number, x: number, y: number): number {
-  return (raw + x * 3 + y * 5) & 7;
+  return (raw + x + y * 2) & 3;
 }
 
 export function unmaskSymbol(sym: number, x: number, y: number): number {
-  return (sym - (x * 3 + y * 5) + 32) & 7;
+  return (sym - (x + y * 2) + 64) & 3;
 }
 
 export function bytesToSymbols(bytes: Uint8Array, n: number): Uint8Array {
@@ -140,15 +146,13 @@ export function symbolsToBytes(grid: Uint8Array, n: number, byteLen: number): Ui
 }
 
 export function finderColor(lx: number, ly: number): number {
-  if (lx === 0 || ly === 0 || lx === 6 || ly === 6) return 2;
+  if (lx === 0 || ly === 0 || lx === 6 || ly === 6) return 1;
   if (lx === 1 || ly === 1 || lx === 5 || ly === 5) return 0;
-  return 2;
+  return 1;
 }
 
 export function alignColor(lx: number, ly: number): number {
-  if (lx === 0 || ly === 0 || lx === 4 || ly === 4) return 2;
-  if (lx === 2 && ly === 2) return 2;
+  if (lx === 0 || ly === 0 || lx === 4 || ly === 4) return 1;
+  if (lx === 2 && ly === 2) return 1;
   return 0;
 }
-
-export { PALETTE };

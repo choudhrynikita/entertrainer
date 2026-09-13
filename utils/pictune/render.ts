@@ -1,4 +1,4 @@
-import { ALIGN, CANVAS, CENTER, FINDER, PALETTE, QUIET } from "./protocol";
+import { ALIGN, CANVAS, CENTER, DATA_BASE, FINDER, GOLD, INK, PAPER, QUIET, tone } from "./protocol";
 import {
   alignColor,
   finderColor,
@@ -9,17 +9,33 @@ import {
   isFinder,
   isFormat,
   isKey,
+  isOutside,
   isSeparator,
   isTiming,
   keyIndex,
 } from "./grid";
 
-function setPx(rgba: Uint8ClampedArray, w: number, x: number, y: number, rgb: readonly [number, number, number]) {
+function setPx(
+  rgba: Uint8ClampedArray,
+  w: number,
+  x: number,
+  y: number,
+  rgb: readonly [number, number, number],
+  a = 255,
+) {
   if (x < 0 || y < 0 || x >= w || y >= w) return;
   const o = (y * w + x) * 4;
-  rgba[o] = rgb[0];
-  rgba[o + 1] = rgb[1];
-  rgba[o + 2] = rgb[2];
+  if (a >= 255) {
+    rgba[o] = rgb[0];
+    rgba[o + 1] = rgb[1];
+    rgba[o + 2] = rgb[2];
+    rgba[o + 3] = 255;
+    return;
+  }
+  const u = a / 255;
+  rgba[o] = Math.round(rgba[o]! * (1 - u) + rgb[0] * u);
+  rgba[o + 1] = Math.round(rgba[o + 1]! * (1 - u) + rgb[1] * u);
+  rgba[o + 2] = Math.round(rgba[o + 2]! * (1 - u) + rgb[2] * u);
   rgba[o + 3] = 255;
 }
 
@@ -69,31 +85,98 @@ function fillCircle(
   }
 }
 
-function drawPt(rgba: Uint8ClampedArray, w: number, cx: number, cy: number, s: number) {
-  const gold = PALETTE[2]!;
-  const ink = PALETTE[0]!;
-  fillCircle(rgba, w, cx, cy, s * 0.92, ink);
-  fillCircle(rgba, w, cx, cy, s * 0.92, gold);
-  fillCircle(rgba, w, cx, cy, s * 0.78, ink);
-  const x = cx - s * 0.42;
-  const y = cy - s * 0.4;
-  fillRect(rgba, w, x, y, s * 0.18, s * 0.82, gold, 2);
-  fillRect(rgba, w, x, y, s * 0.72, s * 0.18, gold, 2);
-  const r = s * 0.28;
-  const ox = x + s * 0.52;
-  const oy = y + s * 0.48;
-  for (let a = 0; a < 360; a++) {
-    const rad = (a * Math.PI) / 180;
-    const px = Math.round(ox + Math.cos(rad) * r);
-    const py = Math.round(oy + Math.sin(rad) * r);
-    for (let t = -1; t <= 1; t++) {
-      setPx(rgba, w, px + t, py, gold);
-      setPx(rgba, w, px, py + t, gold);
+function strokeCircle(
+  rgba: Uint8ClampedArray,
+  w: number,
+  cx: number,
+  cy: number,
+  rad: number,
+  thickness: number,
+  rgb: readonly [number, number, number],
+) {
+  const outer = (rad + thickness * 0.5) * (rad + thickness * 0.5);
+  const inner = Math.max(0, rad - thickness * 0.5);
+  const inner2 = inner * inner;
+  const x0 = Math.max(0, Math.floor(cx - rad - thickness));
+  const y0 = Math.max(0, Math.floor(cy - rad - thickness));
+  const x1 = Math.min(w - 1, Math.ceil(cx + rad + thickness));
+  const y1 = Math.min(w - 1, Math.ceil(cy + rad + thickness));
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dx = x + 0.5 - cx;
+      const dy = y + 0.5 - cy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= outer && d2 >= inner2) setPx(rgba, w, x, y, rgb);
     }
   }
 }
 
-export function renderGrid(symbols: Uint8Array, n: number): {
+/** Engage listing mark: note head + stem + flag. */
+function drawNote(
+  rgba: Uint8ClampedArray,
+  w: number,
+  cx: number,
+  cy: number,
+  s: number,
+  rgb: readonly [number, number, number],
+) {
+  const rot = (-18 * Math.PI) / 180;
+  const hx = cx - s * 0.12;
+  const hy = cy + s * 0.22;
+  const rx = s * 0.28;
+  const ry = s * 0.195;
+  const x0 = Math.floor(hx - rx * 1.4);
+  const y0 = Math.floor(hy - ry * 1.4);
+  const x1 = Math.ceil(hx + rx * 1.4);
+  const y1 = Math.ceil(hy + ry * 1.4);
+  const cos = Math.cos(rot);
+  const sin = Math.sin(rot);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dx = x + 0.5 - hx;
+      const dy = y + 0.5 - hy;
+      const lx = dx * cos + dy * sin;
+      const ly = -dx * sin + dy * cos;
+      if ((lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) <= 1) setPx(rgba, w, x, y, rgb);
+    }
+  }
+  const stemW = Math.max(2, Math.round(s * 0.09));
+  const stemH = s * 0.72;
+  const sx = cx + s * 0.12;
+  const sy = cy - s * 0.48;
+  fillRect(rgba, w, Math.round(sx), Math.round(sy), stemW, Math.round(stemH), rgb, 1);
+  const flagR = s * 0.28;
+  for (let a = -20; a <= 95; a++) {
+    const rad = (a * Math.PI) / 180;
+    const px = Math.round(sx + stemW + Math.cos(rad) * flagR);
+    const py = Math.round(sy + 4 + Math.sin(rad) * flagR * 0.7);
+    for (let t = -Math.ceil(s * 0.04); t <= Math.ceil(s * 0.04); t++) {
+      setPx(rgba, w, px + t, py, rgb);
+      setPx(rgba, w, px, py + t, rgb);
+    }
+  }
+}
+
+function paperFill(rgba: Uint8ClampedArray, w: number) {
+  for (let y = 0; y < w; y++) {
+    for (let x = 0; x < w; x++) {
+      const n =
+        (((x * 374761 + y * 668265) >>> 0) % 17) - 8;
+      const v: [number, number, number] = [
+        Math.max(0, Math.min(255, PAPER[0] + n)),
+        Math.max(0, Math.min(255, PAPER[1] + n)),
+        Math.max(0, Math.min(255, PAPER[2] + n * 0.6)),
+      ];
+      setPx(rgba, w, x, y, v);
+    }
+  }
+}
+
+export function renderGrid(
+  symbols: Uint8Array,
+  n: number,
+  energy?: Float32Array,
+): {
   rgba: Uint8ClampedArray;
   width: number;
   height: number;
@@ -103,11 +186,16 @@ export function renderGrid(symbols: Uint8Array, n: number): {
   const width = CANVAS;
   const module = width / cells;
   const rgba = new Uint8ClampedArray(width * width * 4);
-  const ink = PALETTE[0]!;
-  fillRect(rgba, width, 0, 0, width, width, ink);
+  paperFill(rgba, width);
 
   const origin = QUIET * module;
-  const solid = module < 12;
+  const discCx = origin + (n / 2) * module;
+  const discCy = origin + (n / 2) * module;
+  const discR = (n * 0.5 - 1.1) * module;
+
+  fillCircle(rgba, width, discCx, discCy, discR + module * 0.85, INK);
+  fillCircle(rgba, width, discCx, discCy, discR + module * 0.55, GOLD);
+  fillCircle(rgba, width, discCx, discCy, discR + module * 0.18, [32, 28, 24]);
 
   const cellRect = (x: number, y: number) => {
     const x0 = Math.round(origin + x * module);
@@ -117,66 +205,62 @@ export function renderGrid(symbols: Uint8Array, n: number): {
     return [x0, y0, x1 - x0, y1 - y0] as const;
   };
 
+  const goldInk = (on: boolean): readonly [number, number, number] => (on ? GOLD : INK);
+
   for (let y = 0; y < n; y++) {
     for (let x = 0; x < n; x++) {
-      let color = symbols[y * n + x] ?? 0;
-      let reserved = false;
+      const [px, py, pw, ph] = cellRect(x, y);
+      let rgb: readonly [number, number, number] | null = null;
       if (isFinder(x, y, n)) {
         const lx = x < FINDER ? x : x - (n - FINDER);
         const ly = y < FINDER ? y : y - (n - FINDER);
-        color = finderColor(lx, ly);
-        reserved = true;
+        rgb = goldInk(finderColor(lx, ly) === 1);
       } else if (isSeparator(x, y, n)) {
-        color = 0;
-        reserved = true;
+        rgb = INK;
       } else if (isAlign(x, y, n)) {
         const a0 = n - ALIGN - 2;
-        color = alignColor(x - a0, y - a0);
-        reserved = true;
+        rgb = goldInk(alignColor(x - a0, y - a0) === 1);
       } else if (isTiming(x, y, n)) {
-        color = (x + y) % 2 === 0 ? 2 : 0;
-        reserved = true;
+        rgb = goldInk((x + y) % 2 === 0);
       } else if (isKey(x, y, n)) {
-        color = keyIndex(x, y, n);
-        reserved = true;
+        const ki = keyIndex(x, y, n);
+        rgb = tone(DATA_BASE[ki]!, 0.5);
       } else if (isFormat(x, y, n)) {
-        color = formatSymbol(n, formatIndex(x, y, n));
-        reserved = true;
+        rgb = tone(DATA_BASE[formatSymbol(n, formatIndex(x, y, n))]!, 0.5);
       } else if (isCenter(x, y, n)) {
         continue;
-      }
-      const rgb = PALETTE[color] ?? ink;
-      const [px, py, pw, ph] = cellRect(x, y);
-      if (reserved || solid) {
-        fillRect(rgba, width, px, py, pw, ph, rgb);
+      } else if (isOutside(x, y, n)) {
+        continue;
       } else {
-        const inset = Math.max(1, Math.round(module * 0.08));
-        fillRect(
-          rgba,
-          width,
-          px + inset,
-          py + inset,
-          pw - inset * 2,
-          ph - inset * 2,
-          rgb,
-          Math.round(module * 0.28),
-        );
+        const sym = symbols[y * n + x] ?? 0;
+        const e = energy ? energy[y * n + x]! : 0.5;
+        const light = 0.28 + 0.44 * Math.max(0, Math.min(1, e));
+        rgb = tone(DATA_BASE[sym & 3]!, light);
       }
+      if (!rgb) continue;
+      const inset = Math.max(1, Math.round(module * 0.06));
+      fillRect(
+        rgba,
+        width,
+        px + inset,
+        py + inset,
+        pw - inset * 2,
+        ph - inset * 2,
+        rgb,
+        Math.round(module * 0.22),
+      );
     }
   }
 
   const c0 = Math.floor((n - CENTER) / 2);
   const ccx = origin + (c0 + CENTER / 2) * module;
   const ccy = origin + (c0 + CENTER / 2) * module;
-  drawPt(rgba, width, ccx, ccy, (CENTER * module) / 2);
+  const cr = (CENTER * module) / 2;
+  fillCircle(rgba, width, ccx, ccy, cr, PAPER);
+  strokeCircle(rgba, width, ccx, ccy, cr * 0.92, Math.max(2, module * 0.18), GOLD);
+  drawNote(rgba, width, ccx, ccy, cr * 0.95, INK);
 
-  const gold = PALETTE[2]!;
-  const frame = Math.round(origin) - 3;
-  const span = Math.round(n * module) + 6;
-  fillRect(rgba, width, frame, frame, span, 2, gold);
-  fillRect(rgba, width, frame, frame + span - 2, span, 2, gold);
-  fillRect(rgba, width, frame, frame, 2, span, gold);
-  fillRect(rgba, width, frame + span - 2, frame, 2, span, gold);
+  strokeCircle(rgba, width, discCx, discCy, discR * 0.985, 1.5, [40, 36, 30]);
 
   return { rgba, width, height: width, module };
 }

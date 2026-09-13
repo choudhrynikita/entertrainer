@@ -2,9 +2,10 @@
 import { TARGET_RATE, type PicTuneHeader } from '~/utils/pictune/protocol'
 import { makePicTune, openPicTuneFile, pngBlobUrl } from '~/utils/pictune/client'
 import { decodeAudioFile, prepareVoice, synthJingle } from '~/utils/pictune/audio'
-import { downloadBytes, getAudioContext, playPcm, stopPlayback } from '~/utils/pictune/playback'
+import { downloadBytes, getAudioContext, playPcm, stopPlayback, unlockAudio } from '~/utils/pictune/playback'
 import { startVoiceCapture, type VoiceCapture } from '~/utils/pictune/record'
 import { holdableSeconds } from '~/utils/pictune/codec'
+import { useThemeStore } from '~/stores/theme'
 
 definePageMeta({ ssr: false })
 
@@ -12,14 +13,6 @@ useSeoMeta({
   title: 'pictune · Engage',
   description: 'A pictune is a picture you can hear. Print it, screenshot it, send it.',
   ogUrl: 'https://entertrainer.in/engage/pictune',
-})
-
-useHead({
-  link: [
-    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
-    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap' },
-  ],
 })
 
 type Tab = 'make' | 'play'
@@ -34,6 +27,7 @@ type Glyph = {
   sampleRate: number
 }
 
+const theme = useThemeStore()
 const tab = ref<Tab>('make')
 const voice = shallowRef<VoiceTake | null>(null)
 const glyph = shallowRef<Glyph | null>(null)
@@ -101,6 +95,7 @@ async function finishCapture(cap: VoiceCapture) {
 
 async function toggleRecord() {
   error.value = null
+  await unlockAudio()
   if (recState.value === 'recording') {
     const cap = capture.value
     if (cap) await finishCapture(cap)
@@ -191,7 +186,7 @@ async function onPlayFile(file: File) {
       height: dec.height,
       header: dec.header,
       pcm: dec.pcm,
-      sampleRate: dec.header.sampleRate,
+      sampleRate: TARGET_RATE,
       crcOk: dec.crcOk,
     }
     tab.value = 'play'
@@ -233,13 +228,25 @@ onBeforeUnmount(() => {
     <div class="pt__phone">
       <header class="pt__head">
         <NuxtLink to="/engage" class="pt__brand" aria-label="pictune, back to Engage">
-          <svg viewBox="0 0 28 28" class="pt__mark" aria-hidden="true">
-            <rect width="28" height="28" rx="7" fill="#FFD43B" />
-            <path fill="#0B0B0C" d="M6.4 6.6h8.6c2.7 0 4.45 1.65 4.45 4.2 0 2.15-1.3 3.7-3.45 4.15L18.7 21.4h-3.05l-2.55-6.05H9.2V21.4H6.4V6.6zm2.8 2.3v4.15h5.35c1.35 0 2.15-.8 2.15-1.95s-.8-2.2-2.15-2.2H9.2z" />
-            <path fill="#0B0B0C" d="M19.35 6.6h2.55v14.8h-2.55z" />
-          </svg>
+          <span class="pt__mark" aria-hidden="true">
+            <EdPictuneMark />
+          </span>
           <span>pictune</span>
         </NuxtLink>
+        <button
+          type="button"
+          class="pt__theme"
+          :aria-label="`Switch to ${theme.theme === 'dark' ? 'light' : 'dark'} mode`"
+          @click="theme.toggle()"
+        >
+          <svg v-if="theme.theme === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <path d="M12 3v1.5M12 19.5V21M4.6 4.6l1.1 1.1M18.3 18.3l1.1 1.1M3 12h1.5M19.5 12H21M4.6 19.4l1.1-1.1M18.3 5.7l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.8" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17 13.5A6.5 6.5 0 1 1 10.5 7 5 5 0 0 0 17 13.5Z" fill="none" stroke="currentColor" stroke-width="1.8" />
+          </svg>
+        </button>
       </header>
 
       <input
@@ -259,15 +266,34 @@ onBeforeUnmount(() => {
 
       <main class="pt__main">
         <template v-if="tab === 'make'">
-          <div class="pt__well" :class="{ 'pt__well--tap': recState === 'denied' && !glyph }" @click="recState === 'denied' && !glyph ? audioInput?.click() : undefined">
+          <button
+            type="button"
+            class="pt__well"
+            :class="{ 'pt__well--tap': recState === 'denied' && !glyph }"
+            @click="glyph ? togglePlay(glyph) : recState === 'denied' && !glyph ? audioInput?.click() : undefined"
+          >
             <img v-if="glyph" :src="glyph.url" alt="">
             <span v-else>your pictune</span>
-          </div>
+          </button>
 
           <p v-if="recState === 'recording'" class="pt__clock">{{ clock(recMs) }}</p>
           <p v-else-if="voice && !glyph" class="pt__ready">{{ clock(voice.durationMs) }}</p>
 
           <template v-if="glyph">
+            <button
+              type="button"
+              class="pt__play"
+              :aria-label="playing ? 'pause' : 'play'"
+              @click="void togglePlay(glyph)"
+            >
+              <svg v-if="playing" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="6" y="5" width="4.5" height="14" rx="1.2" fill="currentColor" />
+                <rect x="13.5" y="5" width="4.5" height="14" rx="1.2" fill="currentColor" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5.5v13l11-6.5L8 5.5Z" fill="currentColor" />
+              </svg>
+            </button>
             <button type="button" class="pt__cta" @click="downloadBytes(glyph.png, 'pictune.png', 'image/png')">
               save pictune
             </button>
@@ -303,7 +329,7 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else>
-          <button type="button" class="pt__well" @click="playInput?.click()">
+          <button type="button" class="pt__well" @click="opened ? togglePlay(opened) : playInput?.click()">
             <img v-if="opened" :src="opened.url" alt="">
             <span v-else>{{ busy ?? 'open a pictune' }}</span>
           </button>
@@ -345,19 +371,19 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .pt {
-  --pt-paper: #0B0B0C;
-  --pt-ink: #F2F2F4;
-  --pt-accent: #FFD43B;
-  --pt-accent-fg: #0B0B0C;
-  --pt-surface: #141416;
-  --pt-muted: #8A8A90;
-  --pt-line: #2A2A2E;
+  --pt-paper: var(--paper);
+  --pt-ink: var(--ink);
+  --pt-accent: var(--accent);
+  --pt-accent-fg: var(--accent-ink);
+  --pt-surface: var(--paper-2);
+  --pt-muted: var(--muted);
+  --pt-line: var(--line);
   position: fixed;
   inset: 0;
   z-index: 40;
   background: var(--pt-paper);
   color: var(--pt-ink);
-  font-family: Inter, Helvetica, sans-serif;
+  font-family: var(--font-ui);
   font-weight: 500;
   display: flex;
   justify-content: center;
@@ -374,6 +400,7 @@ onBeforeUnmount(() => {
 .pt__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 56px;
 }
 .pt__brand {
@@ -390,8 +417,26 @@ onBeforeUnmount(() => {
 .pt__mark {
   width: 28px;
   height: 28px;
-  display: block;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--pt-accent);
+  color: var(--pt-accent-fg);
 }
+.pt__mark :deep(svg) { width: 20px; height: 20px; display: block; }
+.pt__theme {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--pt-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.pt__theme svg { width: 20px; height: 20px; }
+.pt__theme:hover { color: var(--pt-ink); }
 .pt__file {
   position: absolute;
   width: 1px;
@@ -413,7 +458,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: min(400px, 48dvh);
   overflow: hidden;
-  border-radius: 28px;
+  border-radius: 22px;
   background: var(--pt-surface);
   color: var(--pt-muted);
   font-size: 14px;
@@ -428,7 +473,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 12px;
+  padding: 4px;
   box-sizing: border-box;
   display: block;
 }
@@ -460,7 +505,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: var(--pt-accent);
   color: var(--pt-accent-fg);
-  font: 500 16px/1 Inter, Helvetica, sans-serif;
+  font: 500 16px/1 var(--font-ui);
   cursor: pointer;
 }
 .pt__cta:disabled { opacity: 0.4; }
@@ -468,7 +513,7 @@ onBeforeUnmount(() => {
   border: 0;
   background: none;
   color: var(--pt-muted);
-  font: 500 14px/1 Inter, Helvetica, sans-serif;
+  font: 500 14px/1 var(--font-ui);
   cursor: pointer;
   padding: 8px;
   min-height: 44px;
@@ -530,7 +575,7 @@ onBeforeUnmount(() => {
   margin: 0;
   text-align: center;
   font-size: 13px;
-  color: var(--pt-accent);
+  color: var(--danger);
 }
 .pt__tabs {
   display: grid;
@@ -547,7 +592,7 @@ onBeforeUnmount(() => {
   border: 0;
   background: none;
   color: var(--pt-muted);
-  font: 500 12px/1 Inter, Helvetica, sans-serif;
+  font: 500 12px/1 var(--font-ui);
   letter-spacing: 0.04em;
   cursor: pointer;
 }

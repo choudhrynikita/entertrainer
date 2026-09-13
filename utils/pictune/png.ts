@@ -1,5 +1,6 @@
 import { zlibSync, unzlibSync } from "fflate";
 import { crc32 } from "./crc32";
+import { PNG_CHUNK } from "./protocol";
 
 const PNG_SIG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -8,7 +9,7 @@ function be32(n: number): Uint8Array {
 }
 
 function readBe32(b: Uint8Array, o: number): number {
-  return ((b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | b[o + 3]!) >>> 0;
+  return ((b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | (b[o + 3]!)) >>> 0;
 }
 
 function concat(parts: Uint8Array[]): Uint8Array {
@@ -34,9 +35,7 @@ function chunk(type: string, data: Uint8Array): Uint8Array {
 
 function latin1(s: string): Uint8Array {
   const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) {
-    out[i] = s.charCodeAt(i) & 0xff;
-  }
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
   return out;
 }
 
@@ -65,6 +64,7 @@ export interface DecodedPng {
   height: number;
   rgb: Uint8Array;
   text: Record<string, string>;
+  payload: Uint8Array | null;
 }
 
 export function encodePngRgb(
@@ -72,16 +72,15 @@ export function encodePngRgb(
   height: number,
   rgb: Uint8Array,
   text: Record<string, string> = {},
+  payload?: Uint8Array,
 ): Uint8Array {
   if (rgb.length !== width * height * 3) {
-    throw new Error(
-      `RGB length ${rgb.length} != ${width}×${height}×3`,
-    );
+    throw new Error(`RGB length ${rgb.length} != ${width}×${height}×3`);
   }
   const raw = new Uint8Array(height * (1 + width * 3));
   for (let y = 0; y < height; y++) {
     const dst = y * (1 + width * 3);
-    raw[dst] = 0; // filter None
+    raw[dst] = 0;
     raw.set(rgb.subarray(y * width * 3, (y + 1) * width * 3), dst + 1);
   }
   const compressed = zlibSync(raw, { level: 9 });
@@ -89,8 +88,8 @@ export function encodePngRgb(
   const ihdr = new Uint8Array(13);
   ihdr.set(be32(width), 0);
   ihdr.set(be32(height), 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 2; // color type RGB
+  ihdr[8] = 8;
+  ihdr[9] = 2;
   ihdr[10] = 0;
   ihdr[11] = 0;
   ihdr[12] = 0;
@@ -100,6 +99,9 @@ export function encodePngRgb(
     if (!k || k.length > 79) continue;
     parts.push(textChunk(k, v));
   }
+  if (payload && payload.length) {
+    parts.push(chunk(PNG_CHUNK, zlibSync(payload, { level: 9 })));
+  }
   parts.push(chunk("IDAT", compressed));
   parts.push(chunk("IEND", new Uint8Array(0)));
   return concat(parts);
@@ -107,9 +109,7 @@ export function encodePngRgb(
 
 export function decodePngRgb(bytes: Uint8Array): DecodedPng {
   for (let i = 0; i < 8; i++) {
-    if (bytes[i] !== PNG_SIG[i]) {
-      throw new Error("Not a PNG (bad signature)");
-    }
+    if (bytes[i] !== PNG_SIG[i]) throw new Error("Not a PNG (bad signature)");
   }
   let o = 8;
   let width = 0;
@@ -118,6 +118,7 @@ export function decodePngRgb(bytes: Uint8Array): DecodedPng {
   let colorType = 0;
   const idats: Uint8Array[] = [];
   const text: Record<string, string> = {};
+  let payload: Uint8Array | null = null;
 
   while (o + 12 <= bytes.length) {
     const len = readBe32(bytes, o);
@@ -136,6 +137,12 @@ export function decodePngRgb(bytes: Uint8Array): DecodedPng {
         const key = String.fromCharCode(...data.subarray(0, z));
         const val = String.fromCharCode(...data.subarray(z + 1));
         text[key] = val;
+      }
+    } else if (type === PNG_CHUNK) {
+      try {
+        payload = unzlibSync(data);
+      } catch {
+        payload = null;
       }
     } else if (type === "IEND") {
       break;
@@ -183,7 +190,7 @@ export function decodePngRgb(bytes: Uint8Array): DecodedPng {
     prev.set(recon);
   }
 
-  return { width, height, rgb, text };
+  return { width, height, rgb, text, payload };
 }
 
 export function isPng(bytes: Uint8Array): boolean {

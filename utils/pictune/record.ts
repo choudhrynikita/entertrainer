@@ -40,13 +40,26 @@ export async function startVoiceCapture(opts: {
   source.connect(analyser);
 
   const chunks: Float32Array[] = [];
+  const blobs: Blob[] = [];
   const started = performance.now();
   let stopped = false;
+  let rec: MediaRecorder | null = null;
   let proc: ScriptProcessorNode | null = null;
+
+  if (typeof MediaRecorder !== "undefined") {
+    try {
+      rec = new MediaRecorder(stream);
+      rec.ondataavailable = (ev) => {
+        if (ev.data.size) blobs.push(ev.data);
+      };
+      rec.start(200);
+    } catch {
+      rec = null;
+    }
+  }
 
   const mute = ctx.createGain();
   mute.gain.value = 0;
-
   if (typeof ctx.createScriptProcessor === "function") {
     proc = ctx.createScriptProcessor(4096, 1, 1);
     proc.onaudioprocess = (ev) => {
@@ -56,15 +69,6 @@ export async function startVoiceCapture(opts: {
     analyser.connect(proc);
     proc.connect(mute);
     mute.connect(ctx.destination);
-  } else {
-    const tap = new Float32Array(analyser.fftSize);
-    const pump = () => {
-      if (stopped) return;
-      analyser.getFloatTimeDomainData(tap);
-      chunks.push(tap.slice());
-      requestAnimationFrame(pump);
-    };
-    requestAnimationFrame(pump);
   }
 
   const levelBuf = new Uint8Array(analyser.frequencyBinCount);
@@ -90,6 +94,17 @@ export async function startVoiceCapture(opts: {
       }
       stopped = true;
       cancelAnimationFrame(raf);
+      const recDone = rec
+        ? new Promise<void>((resolve) => {
+            rec!.onstop = () => resolve();
+            try {
+              rec!.stop();
+            } catch {
+              resolve();
+            }
+          })
+        : Promise.resolve();
+      await recDone;
       try {
         proc?.disconnect();
       } catch {
@@ -103,14 +118,26 @@ export async function startVoiceCapture(opts: {
         /* already down */
       }
       for (const t of stream.getTracks()) t.stop();
-      const pcm = concatFloat(chunks);
-      const durationMs = Math.round((pcm.length / ctx.sampleRate) * 1000);
+
+      let pcm = concatFloat(chunks);
+      let sampleRate = ctx.sampleRate;
+      if (blobs.length && ctx.decodeAudioData) {
+        try {
+          const buf = await new Blob(blobs).arrayBuffer();
+          const decoded = await ctx.decodeAudioData(buf.slice(0));
+          pcm = decoded.getChannelData(0).slice();
+          sampleRate = decoded.sampleRate;
+        } catch {
+          /* keep scriptprocessor capture */
+        }
+      }
+      const durationMs = Math.round((pcm.length / sampleRate) * 1000);
       try {
         await ctx.close();
       } catch {
         /* closed */
       }
-      return { pcm, sampleRate: ctx.sampleRate, channels: 1, durationMs };
+      return { pcm, sampleRate, channels: 1, durationMs };
     },
   };
   return handle;

@@ -13,6 +13,7 @@ import {
   type PicTuneHeader,
 } from "./protocol";
 import { renderGrid } from "./render";
+import { polarEnergy } from "./art";
 import { decodeRvq, encodeRvq, rvqDurationMs, BITS_PER_SEC } from "./rvq";
 
 export interface EncodeOutput {
@@ -31,16 +32,28 @@ export interface DecodeOutput {
   height: number;
   crcOk: boolean;
   rgba: Uint8ClampedArray;
+  fromChunk: boolean;
 }
 
-export function pngFromRgba(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): Uint8Array {
+export function pngFromRgba(
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+  payload?: Uint8Array,
+): Uint8Array {
   const rgb = new Uint8Array(width * height * 3);
   for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
     rgb[j] = rgba[i]!;
     rgb[j + 1] = rgba[i + 1]!;
     rgb[j + 2] = rgba[i + 2]!;
   }
-  return encodePngRgb(width, height, rgb, { Software: "PicTune", "PT-Magic": "PICTUNE4" });
+  return encodePngRgb(
+    width,
+    height,
+    rgb,
+    { Software: "PicTune", "PT-Magic": "PICTUNE5" },
+    payload,
+  );
 }
 
 export function rgbaFromRgb(rgb: Uint8Array, width: number, height: number): Uint8ClampedArray {
@@ -56,14 +69,17 @@ export function rgbaFromRgb(rgb: Uint8Array, width: number, height: number): Uin
 
 export function holdableSeconds(): number {
   const cap = dataCapacityBytes(MAX_GRID);
-  const inner = Math.floor(cap / 2) - 8;
-  const payload = Math.max(0, inner - HEADER_BYTES);
-  return Math.min(HOLD_SECONDS, payload / (BITS_PER_SEC / 8));
+  const payload = Math.max(0, cap - 8 - HEADER_BYTES);
+  const innerNeed = (payload * 191) / 255;
+  return Math.min(HOLD_SECONDS, innerNeed / (BITS_PER_SEC / 8));
 }
 
-export function encodePicTune(input: { pcm: Int16Array; sampleRate: number }): EncodeOutput {
+function packBlob(input: { pcm: Int16Array; sampleRate: number }): {
+  blob: Uint8Array;
+  header: PicTuneHeader;
+} {
   const rvq = encodeRvq(input.pcm, input.sampleRate);
-  const header = packHeader({
+  const headerBytes = packHeader({
     sampleRate: input.sampleRate,
     frameCount: input.pcm.length,
     crc32: payloadCrc(rvq),
@@ -71,21 +87,45 @@ export function encodePicTune(input: { pcm: Int16Array; sampleRate: number }): E
     payloadBytes: rvq.length,
   });
   const blob = new Uint8Array(HEADER_BYTES + rvq.length);
-  blob.set(header, 0);
+  blob.set(headerBytes, 0);
   blob.set(rvq, HEADER_BYTES);
+  return { blob, header: unpackHeader(headerBytes) };
+}
+
+function unpackBlob(blob: Uint8Array): Omit<DecodeOutput, "width" | "height" | "rgba" | "fromChunk"> {
+  const header = unpackHeader(blob);
+  const rvq = blob.subarray(HEADER_BYTES, HEADER_BYTES + header.payloadBytes);
+  const crcOk = payloadCrc(rvq) === header.crc32;
+  const { pcm } = decodeRvq(rvq);
+  return { pcm, header, crcOk };
+}
+
+export function encodePicTune(input: { pcm: Int16Array; sampleRate: number }): EncodeOutput {
+  const { blob, header } = packBlob(input);
   const wrapped = protect(blob);
   const n = gridForBytes(wrapped.length);
   if (!n) throw new PicTuneError("that take is too long for a pictune.");
   const symbols = bytesToSymbols(wrapped, n);
-  const img = renderGrid(symbols, n);
+  const energy = polarEnergy(input.pcm, input.sampleRate, n);
+  const img = renderGrid(symbols, n, energy);
   return {
-    png: pngFromRgba(img.rgba, img.width, img.height),
+    png: pngFromRgba(img.rgba, img.width, img.height, blob),
     rgba: img.rgba,
     width: img.width,
     height: img.height,
-    header: unpackHeader(header),
+    header,
     n,
   };
+}
+
+export function decodeFromPayload(
+  blob: Uint8Array,
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+): DecodeOutput {
+  const core = unpackBlob(blob);
+  return { ...core, width, height, rgba, fromChunk: true };
 }
 
 export function decodePicTune(
@@ -99,9 +139,6 @@ export function decodePicTune(
   const raw = symbolsToBytes(grid, n, dataCapacityBytes(n));
   const blob = recover(raw);
   if (!blob) throw new PicTuneError("couldn't hear this pictune. try the original image.");
-  const header = unpackHeader(blob);
-  const rvq = blob.subarray(HEADER_BYTES, HEADER_BYTES + header.payloadBytes);
-  const crcOk = payloadCrc(rvq) === header.crc32;
-  const { pcm } = decodeRvq(rvq);
-  return { pcm, header, width, height, crcOk, rgba: copy };
+  const core = unpackBlob(blob);
+  return { ...core, width, height, rgba: copy, fromChunk: false };
 }

@@ -38,14 +38,19 @@ export function jpegish(rgba: Uint8ClampedArray, w: number, h: number): Uint8Cla
   const out = new Uint8ClampedArray(rgba.length);
   for (let y = 0; y < h; y += 2) {
     for (let x = 0; x < w; x += 2) {
-      let ys = 0, cbs = 0, crs = 0, n = 0;
+      let ys = 0,
+        cbs = 0,
+        crs = 0,
+        n = 0;
       const pix: number[] = [];
       for (let dy = 0; dy < 2; dy++) {
         for (let dx = 0; dx < 2; dx++) {
           const xx = Math.min(w - 1, x + dx);
           const yy = Math.min(h - 1, y + dy);
           const o = (yy * w + xx) * 4;
-          const r = rgba[o]!, g = rgba[o + 1]!, b = rgba[o + 2]!;
+          const r = rgba[o]!,
+            g = rgba[o + 1]!,
+            b = rgba[o + 2]!;
           const Y = 0.299 * r + 0.587 * g + 0.114 * b;
           pix.push(Y, r, g, b, o);
           ys += Y;
@@ -57,7 +62,7 @@ export function jpegish(rgba: Uint8ClampedArray, w: number, h: number): Uint8Cla
       const cb = cbs / n;
       const cr = crs / n;
       for (let i = 0; i < 4; i++) {
-        const Y = Math.round(pix[i * 5]! / 6) * 6;
+        const Y = Math.round(pix[i * 5]! / 8) * 8;
         const o = pix[i * 5 + 4]!;
         const r = Math.max(0, Math.min(255, Y + 1.403 * cr));
         const g = Math.max(0, Math.min(255, Y - 0.344 * cb - 0.714 * cr));
@@ -72,22 +77,33 @@ export function jpegish(rgba: Uint8ClampedArray, w: number, h: number): Uint8Cla
   return out;
 }
 
-export function padImage(
-  rgba: Uint8ClampedArray,
-  w: number,
-  h: number,
-  pad: number,
-  fill = 90,
-): { rgba: Uint8ClampedArray; width: number; height: number } {
-  const nw = w + pad * 2;
-  const nh = h + pad * 2;
-  const out = new Uint8ClampedArray(nw * nh * 4);
-  out.fill(fill);
-  for (let i = 3; i < out.length; i += 4) out[i] = 255;
+export function boxBlur(rgba: Uint8ClampedArray, w: number, h: number, radius = 1): Uint8ClampedArray {
+  if (radius <= 0) return rgba;
+  const out = new Uint8ClampedArray(rgba.length);
+  const r = radius;
   for (let y = 0; y < h; y++) {
-    const src = (y * w) * 4;
-    const dst = ((y + pad) * nw + pad) * 4;
-    out.set(rgba.subarray(src, src + w * 4), dst);
+    for (let x = 0; x < w; x++) {
+      let R = 0,
+        G = 0,
+        B = 0,
+        n = 0;
+      for (let dy = -r; dy <= r; dy++) {
+        const yy = Math.max(0, Math.min(h - 1, y + dy));
+        for (let dx = -r; dx <= r; dx++) {
+          const xx = Math.max(0, Math.min(w - 1, x + dx));
+          const o = (yy * w + xx) * 4;
+          R += rgba[o]!;
+          G += rgba[o + 1]!;
+          B += rgba[o + 2]!;
+          n++;
+        }
+      }
+      const o = (y * w + x) * 4;
+      out[o] = R / n;
+      out[o + 1] = G / n;
+      out[o + 2] = B / n;
+      out[o + 3] = 255;
+    }
   }
-  return { rgba: out, width: nw, height: nh };
+  return out;
 }

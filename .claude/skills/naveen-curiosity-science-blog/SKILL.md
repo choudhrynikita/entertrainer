@@ -68,6 +68,8 @@ Use title patterns such as:
 
 Offer 5 to 10 title options when the user asks for a blog but has not supplied a final title. Select one primary title and explain the angle only if requested. Do not promise a diagnosis, secret, cure, or universal rule that the article cannot support.
 
+**Do not copy the example titles above.** They are pattern illustrations, not a menu. Invent a title from the specific topic. Never publish titles of the form “Why Your Brain Is Hardwired…”, “Why Your Brain Might Be Hiding…”, “the terrifying truth”, or other pop-neuro clickbait.
+
 ### 3. Gather and triangulate evidence
 
 Use at least three credible sources for a normal article and more for a controversial or high-stakes article. Include at least one current source and at least one primary or review source. Seek a credible limitation or competing interpretation rather than collecting only evidence that supports the hook.

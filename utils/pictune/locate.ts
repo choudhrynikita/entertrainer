@@ -16,7 +16,16 @@ function lum(rgba: Uint8ClampedArray, w: number, x: number, y: number): number {
 }
 
 function dark(rgba: Uint8ClampedArray, w: number, x: number, y: number): boolean {
-  return lum(rgba, w, x, y) < 96;
+  return lum(rgba, w, x, y) < 80;
+}
+
+function goldish(rgba: Uint8ClampedArray, w: number, x: number, y: number): boolean {
+  const o = (y * w + x) * 4;
+  const r = rgba[o]!;
+  const g = rgba[o + 1]!;
+  const b = rgba[o + 2]!;
+  const yv = 0.299 * r + 0.587 * g + 0.114 * b;
+  return yv > 130 && r > 150 && g > 90 && r + g > b * 2.4;
 }
 
 function ratioOk(runs: number[]): boolean {
@@ -125,6 +134,38 @@ function sampleRgb(
 function sampleLum(rgba: Uint8ClampedArray, w: number, h: number, x: number, y: number): number {
   const [r, g, b] = sampleRgb(rgba, w, h, x, y);
   return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function cellMeanRgb(
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): [number, number, number] {
+  const xa = Math.max(0, Math.floor(x0 + 0.5));
+  const xb = Math.min(w - 1, Math.ceil(x1 - 0.5) - 1);
+  const ya = Math.max(0, Math.floor(y0 + 0.5));
+  const yb = Math.min(h - 1, Math.ceil(y1 - 0.5) - 1);
+  if (xb < xa || yb < ya) return sampleRgb(rgba, w, h, (x0 + x1) / 2, (y0 + y1) / 2);
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  const step = Math.max(1, Math.floor(Math.min(xb - xa, yb - ya) / 5));
+  for (let y = ya; y <= yb; y += step) {
+    for (let x = xa; x <= xb; x += step) {
+      const o = (y * w + x) * 4;
+      r += rgba[o]!;
+      g += rgba[o + 1]!;
+      b += rgba[o + 2]!;
+      n++;
+    }
+  }
+  if (!n) return sampleRgb(rgba, w, h, (x0 + x1) / 2, (y0 + y1) / 2);
+  return [r / n, g / n, b / n];
 }
 
 function cellMeanLum(
@@ -278,7 +319,7 @@ function scoreTiming(rgba: Uint8ClampedArray, w: number, h: number, q: Quad, n: 
     const [cx, cy] = map(mx, my);
     const expectDark = (mx + my) % 2 === 1;
     tot++;
-    if (sampleLum(rgba, w, h, cx, cy) < 96 === expectDark) ok++;
+    if (sampleLum(rgba, w, h, cx, cy) < 80 === expectDark) ok++;
   };
   for (let i = FINDER + 1; i < n - FINDER; i++) {
     probe(i, 6);
@@ -328,7 +369,101 @@ function lockQuad(rgba: Uint8ClampedArray, w: number, h: number, q: Quad, n: num
   return best;
 }
 
+function fullFrameFinders(w: number, h: number, n: number): [Finder, Finder, Finder] {
+  const cells = n + QUIET * 2;
+  const mx = w / cells;
+  const my = h / cells;
+  const ox = (QUIET + 3.5) * mx;
+  const oy = (QUIET + 3.5) * my;
+  const size = FINDER * ((mx + my) / 2);
+  return [
+    { x: ox, y: oy, size },
+    { x: w - ox, y: oy, size },
+    { x: ox, y: h - oy, size },
+  ];
+}
+
+function goldBBox(
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let minX = w;
+  let minY = h;
+  let maxX = 0;
+  let maxY = 0;
+  let n = 0;
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 400));
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      if (!goldish(rgba, w, x, y)) continue;
+      n++;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (n < 40) return null;
+  return { minX, minY, maxX: maxX + step, maxY: maxY + step };
+}
+
+function tripleScore(rgba: Uint8ClampedArray, w: number, h: number, finders: Finder[]): number {
+  return finders.reduce((s, f) => s + scoreFinder(rgba, w, h, f), 0);
+}
+
+/** Geometry-first locator: original canvases (any N) beat run-length scanning. */
+function predictedFinders(rgba: Uint8ClampedArray, w: number, h: number): Finder[] | null {
+  let best: Finder[] | null = null;
+  let bestS = 2.2;
+  const consider = (cands: Finder[]) => {
+    if (cands.some((f) => f.x < 4 || f.y < 4 || f.x >= w - 4 || f.y >= h - 4 || f.size < 10)) return;
+    const s = tripleScore(rgba, w, h, cands);
+    if (s > bestS) {
+      bestS = s;
+      best = cands;
+    }
+  };
+  for (let n = MIN_GRID; n <= MAX_GRID; n += 8) {
+    consider(fullFrameFinders(w, h, n));
+  }
+  const bb = goldBBox(rgba, w, h);
+  if (bb) {
+    const bw = bb.maxX - bb.minX;
+    const bh = bb.maxY - bb.minY;
+    if (bw > 48 && bh > 48) {
+      for (let n = MIN_GRID; n <= MAX_GRID; n += 8) {
+        const mx = bw / n;
+        const my = bh / n;
+        const ox = 3.5 * mx;
+        const oy = 3.5 * my;
+        const size = FINDER * ((mx + my) / 2);
+        consider([
+          { x: bb.minX + ox, y: bb.minY + oy, size },
+          { x: bb.maxX - ox, y: bb.minY + oy, size },
+          { x: bb.minX + ox, y: bb.maxY - oy, size },
+        ]);
+        const cells = n + QUIET * 2;
+        const cmx = bw / cells;
+        const cmy = bh / cells;
+        const cox = (QUIET + 3.5) * cmx;
+        const coy = (QUIET + 3.5) * cmy;
+        const csize = FINDER * ((cmx + cmy) / 2);
+        consider([
+          { x: bb.minX + cox, y: bb.minY + coy, size: csize },
+          { x: bb.maxX - cox, y: bb.minY + coy, size: csize },
+          { x: bb.minX + cox, y: bb.maxY - coy, size: csize },
+        ]);
+      }
+    }
+  }
+  return best;
+}
+
 export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Finder[] {
+  const predicted = predictedFinders(rgba, w, h);
+  if (predicted && tripleScore(rgba, w, h, predicted) >= 2.45) return predicted;
+
   const raw: Finder[] = [];
   const step = Math.max(1, Math.floor(Math.min(w, h) / 400));
 
@@ -337,87 +472,68 @@ export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Find
     raw.push({ x: cx, y: cy, size });
   };
 
-  for (let y = 0; y < h; y += step) {
+  const scanLine = (fixed: number, horizontal: boolean) => {
+    const limit = horizontal ? w : h;
+    const atGold = (t: number) =>
+      horizontal ? goldish(rgba, w, t, fixed) : goldish(rgba, w, fixed, t);
     const runs = [0, 0, 0, 0, 0];
     let state = 0;
-    let last = dark(rgba, w, 0, y);
-    for (let x = 0; x < w; x++) {
-      const d = dark(rgba, w, x, y);
-      if (d === last) {
+    let last = atGold(0);
+    for (let t = 0; t < limit; t++) {
+      const g = atGold(t);
+      if (g === last) {
         runs[state]!++;
         continue;
       }
       if (state === 4) {
-        if (ratioOk(runs)) {
+        // Gold-ink-gold-ink-gold: first run must be gold.
+        if (last === true && ratioOk(runs)) {
           const total = runs[0]! + runs[1]! + runs[2]! + runs[3]! + runs[4]!;
-          const cx = x - total + runs[0]! + runs[1]! + runs[2]! / 2;
+          const mid = t - total + runs[0]! + runs[1]! + runs[2]! / 2;
           const module = total / 7;
-          const colRuns = collectRuns(rgba, w, h, Math.max(0, Math.min(w - 1, Math.round(cx))), false);
-          const cy = bestRingCenter(colRuns, module, y);
-          if (cy != null) pushRing(cx, cy, total);
+          if (horizontal) {
+            const colRuns = collectRuns(rgba, w, h, Math.max(0, Math.min(w - 1, Math.round(mid))), false);
+            const cy = bestRingCenter(colRuns, module, fixed);
+            if (cy != null) pushRing(mid, cy, total);
+          } else {
+            const rowRuns = collectRuns(rgba, w, h, Math.max(0, Math.min(h - 1, Math.round(mid))), true);
+            const cx = bestRingCenter(rowRuns, module, fixed);
+            if (cx != null) pushRing(cx, mid, total);
+          }
         }
         runs[0] = runs[1]!;
         runs[1] = runs[2]!;
         runs[2] = runs[3]!;
         runs[3] = runs[4]!;
         runs[4] = 1;
-        last = d;
+        last = g;
         continue;
-      } else {
-        state++;
-        runs[state] = 1;
       }
-      last = d;
+      state++;
+      runs[state] = 1;
+      last = g;
     }
-  }
+  };
 
-  for (let x = 0; x < w; x += step) {
-    const runs = [0, 0, 0, 0, 0];
-    let state = 0;
-    let last = dark(rgba, w, x, 0);
-    for (let y = 0; y < h; y++) {
-      const d = dark(rgba, w, x, y);
-      if (d === last) {
-        runs[state]!++;
-        continue;
-      }
-      if (state === 4) {
-        if (ratioOk(runs)) {
-          const total = runs[0]! + runs[1]! + runs[2]! + runs[3]! + runs[4]!;
-          const cy = y - total + runs[0]! + runs[1]! + runs[2]! / 2;
-          const module = total / 7;
-          const rowRuns = collectRuns(rgba, w, h, Math.max(0, Math.min(h - 1, Math.round(cy))), true);
-          const cx = bestRingCenter(rowRuns, module, x);
-          if (cx != null) pushRing(cx, cy, total);
-        }
-        runs[0] = runs[1]!;
-        runs[1] = runs[2]!;
-        runs[2] = runs[3]!;
-        runs[3] = runs[4]!;
-        runs[4] = 1;
-        last = d;
-        continue;
-      } else {
-        state++;
-        runs[state] = 1;
-      }
-      last = d;
-    }
-  }
+  for (let y = 0; y < h; y += step) scanLine(y, true);
+  for (let x = 0; x < w; x += step) scanLine(x, false);
 
+  const cx = w / 2;
+  const cy = h / 2;
   const grouped = cluster(raw)
     .map((f) => ({ ...f, s: scoreFinder(rgba, w, h, f) }))
-    .filter((f) => f.size > 14 && f.s > 0.72)
+    .filter((f) => f.size > 14 && f.s > 0.68)
+    .filter((f) => Math.hypot(f.x - cx, f.y - cy) > Math.min(w, h) * 0.18)
     .sort((a, b) => b.s - a.s || b.size - a.size);
 
   const pickCorners = (list: Array<Finder & { s: number }>): Finder[] | null => {
-    const m = Math.min(w, h) * 0.3;
+    const m = Math.min(w, h) * 0.32;
     const inBox = (f: Finder, x0: number, y0: number, x1: number, y1: number) =>
       f.x >= x0 && f.x < x1 && f.y >= y0 && f.y < y1;
     const boxes = [
-      list.filter((f) => inBox(f, 0, 0, m, m) && f.s > 0.85),
-      list.filter((f) => inBox(f, w - m, 0, w, m) && f.s > 0.85),
-      list.filter((f) => inBox(f, 0, h - m, m, h) && f.s > 0.85),
+      list.filter((f) => inBox(f, 0, 0, m, m) && f.s > 0.78),
+      list.filter((f) => inBox(f, w - m, 0, w, m) && f.s > 0.78),
+      list.filter((f) => inBox(f, 0, h - m, m, h) && f.s > 0.78),
     ];
     if (boxes.some((b) => !b.length)) return null;
     let best: Finder[] | null = null;
@@ -444,8 +560,8 @@ export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Find
   const pickTriple = (list: Finder[]): Finder[] | null => {
     if (list.length < 3) return null;
     let best: Finder[] | null = null;
-    let bestScore = 1.2;
-    const top = list.slice(0, 10);
+    let bestScore = 1.35;
+    const top = list.slice(0, 12);
     for (let i = 0; i < top.length; i++) {
       for (let j = i + 1; j < top.length; j++) {
         for (let k = j + 1; k < top.length; k++) {
@@ -480,6 +596,8 @@ export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Find
       { x: a.x + dy, y: a.y - dx, size },
       { x: b.x - dy, y: b.y + dx, size },
       { x: b.x + dy, y: b.y - dx, size },
+      { x: a.x, y: b.y, size },
+      { x: b.x, y: a.y, size },
     ];
     let best: Finder | null = null;
     let bestS = 0.58;
@@ -494,6 +612,11 @@ export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Find
     }
     return best ? orderFinders(a, b, best) : null;
   };
+
+  if (predicted) {
+    const s = tripleScore(rgba, w, h, predicted);
+    if (s >= 2.2) return predicted;
+  }
 
   const corners = pickCorners(grouped);
   if (corners) return corners;
@@ -516,6 +639,7 @@ export function findFinders(rgba: Uint8ClampedArray, w: number, h: number): Find
     const done = completePair(pair[0], pair[1]);
     if (done) return done;
   }
+  if (predicted) return predicted;
   return grouped.slice(0, 3);
 }
 
@@ -549,7 +673,7 @@ export function sampleGrid(
     ranked.push({ cand, finder: s, size, module });
     if (s > bestFinder) bestFinder = s;
   }
-  const pool = ranked.filter((r) => r.finder >= bestFinder - 0.15 && r.finder >= 2.2);
+  const pool = ranked.filter((r) => r.finder >= bestFinder - 0.2 && r.finder >= 1.8);
   if (!pool.length) throw new PicTuneError("couldn't lock onto this pictune.");
 
   let bestN = 0;
@@ -570,7 +694,7 @@ export function sampleGrid(
       bestQ = q;
     }
   }
-  if (!bestN || !bestQ || bestScore < 1.4) throw new PicTuneError("couldn't lock onto this pictune.");
+  if (!bestN || !bestQ || bestScore < 1.2) throw new PicTuneError("couldn't lock onto this pictune.");
 
   const q = lockQuad(rgba, w, h, bestQ, bestN);
   const gridN = bestN;
@@ -578,32 +702,15 @@ export function sampleGrid(
   const module = side / (gridN - FINDER);
 
   const rgbGrid = new Float32Array(gridN * gridN * 3);
-  const core = Math.max(0.35, module * 0.1);
+  const inset = Math.max(0.2, module * 0.22);
   for (let my = 0; my < gridN; my++) {
     for (let mx = 0; mx < gridN; mx++) {
       const [cx, cy] = map(mx, my);
-      let r = 0,
-        g = 0,
-        b = 0,
-        c = 0;
-      const pts = [
-        [cx, cy],
-        [cx - core, cy],
-        [cx + core, cy],
-        [cx, cy - core],
-        [cx, cy + core],
-      ];
-      for (const [sx, sy] of pts) {
-        const [rr, gg, bb] = sampleRgb(rgba, w, h, sx, sy);
-        r += rr;
-        g += gg;
-        b += bb;
-        c++;
-      }
+      const [r, g, b] = cellMeanRgb(rgba, w, h, cx - inset, cy - inset, cx + inset, cy + inset);
       const o = (my * gridN + mx) * 3;
-      rgbGrid[o] = r / c;
-      rgbGrid[o + 1] = g / c;
-      rgbGrid[o + 2] = b / c;
+      rgbGrid[o] = r;
+      rgbGrid[o + 1] = g;
+      rgbGrid[o + 2] = b;
     }
   }
 

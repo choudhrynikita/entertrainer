@@ -7,6 +7,7 @@ import {
 } from '../../utils/compose-images'
 import { generateElevateHero, parseHeroBrief, pickHeroBrief } from '../../utils/elevate-hero'
 import { assertComposeAccess } from '../../utils/compose-request'
+import { formatGateForRetry, runHumanNotModelGate } from '../../utils/human-not-model-gate'
 import {
   emptyComposedPost,
   newBlockId,
@@ -489,6 +490,44 @@ export default defineEventHandler(async (event) => {
 
   const post = draftFromModel(parsed, topic)
 
+  let voiceGate = runHumanNotModelGate({
+    title: post.title,
+    dek: post.dek,
+    blocks: post.blocks
+  })
+
+  if (!voiceGate.pass) {
+    try {
+      const voiceRetry = await callProvider({
+        apiKey,
+        model,
+        systemPrompt,
+        userPrompt: [
+          `Topic: ${topic}`,
+          notes ? `Author notes / angle preferences:\n${notes}` : null,
+          formatGateForRetry(voiceGate),
+          'Write a complete replacement Elevate draft JSON now. Rebuild rhythm and scene; do not synonym-swap the failed draft.'
+        ].filter(Boolean).join('\n\n')
+      })
+      if (voiceRetry.status < 400) {
+        const retried = tryParseDraft(voiceRetry.content)
+        if (retried) {
+          const next = draftFromModel(retried, topic)
+          const nextGate = runHumanNotModelGate({
+            title: next.title,
+            dek: next.dek,
+            blocks: next.blocks
+          })
+          parsed = retried
+          Object.assign(post, next)
+          voiceGate = nextGate
+        }
+      }
+    } catch {
+      /* keep first draft; report the failing gate */
+    }
+  }
+
   let imageWarning: string | undefined
   let imageSourceUsed = imageSource
 
@@ -551,6 +590,7 @@ export default defineEventHandler(async (event) => {
     model,
     imageSource: imageSourceUsed,
     imageWarning: imageWarning || undefined,
-    heroBrief: heroBriefUsed
+    heroBrief: heroBriefUsed,
+    voiceGate
   }
 })

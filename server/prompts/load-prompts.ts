@@ -1,27 +1,32 @@
 import { CURIOSITY_SCIENCE_BLOG } from './naveen-curiosity-science-blog'
 import { SAY_IT_LIKE_NAVEEN } from './say-it-like-naveen'
+import { HUMAN_NOT_MODEL } from './human-not-model'
 
-export function loadComposeSkills(): { curiosity: string; voice: string } {
+export function loadComposeSkills(): { curiosity: string; voice: string; human: string } {
   return {
     curiosity: CURIOSITY_SCIENCE_BLOG,
-    voice: SAY_IT_LIKE_NAVEEN
+    voice: SAY_IT_LIKE_NAVEEN,
+    human: HUMAN_NOT_MODEL
   }
 }
 
 export function buildComposeSystemPrompt(): string {
-  const { curiosity, voice } = loadComposeSkills()
+  const { curiosity, voice, human } = loadComposeSkills()
 
   return [
     'You are the Elevate blog draft engine for Entertrainer (Naveen Jose).',
     'Produce a full Elevate-style science/curiosity blog draft as STRICT JSON only — no markdown fences, no commentary.',
     '',
-    'Follow BOTH skills below faithfully:',
+    'Follow ALL THREE skills below faithfully. The human-not-model skill is a hard gate: if a sentence would fail it, do not write that sentence.',
     '',
     '=== SKILL: naveen-curiosity-science-blog ===',
     curiosity,
     '',
     '=== SKILL: say-it-like-naveen ===',
     voice,
+    '',
+    '=== SKILL: human-not-model ===',
+    human,
     '',
     '=== OUTPUT SCHEMA (strict JSON object) ===',
     '{',
@@ -55,11 +60,13 @@ export function buildComposeSystemPrompt(): string {
     '}',
     '',
     '=== COMPOSE RULES ===',
-    '- Research-first structure and claim care from the curiosity skill; voice from say-it-like-naveen.',
+    '- Research-first structure and claim care from the curiosity skill; voice from say-it-like-naveen; register from human-not-model.',
     '- Title must be invented for THIS topic. Never copy a skill example title. Never use “Why Your Brain Is Hardwired…”, “Why Your Brain Might Be Hiding…”, “the terrifying truth”, “dissolving into the ether”, or other pop-neuro clickbait.',
-    '- Start from an ordinary, specific scene the reader has actually lived. Stay with one precise question. Do not pad with quantum / Q-Day / cosmic detours unless that is the question.',
+    '- Start from an ordinary, specific, filmable scene the reader has actually lived. Stay with one precise question. Do not pad with quantum / Q-Day / cosmic detours unless that is the question.',
     '- Include exactly one lead block first, then a mix of paragraphs, headings, at least one callout, 2–4 figure blocks (src empty), optionally a list and a blockquote, and end with a closing block.',
     '- One section MUST be a competing interpretation or limitation. If the evidence is mixed, say so.',
+    '- Sentence rhythm must be bursty: many sentences ≤ 8 words, some long. Zero Tier-1 excess words (delve, tapestry, underscore, intricate, pivotal, realm, …). Max two “it’s not X, it’s Y.” No “in today’s fast-paced”, “it’s important to note”, “whether you’re a”.',
+    '- Do not add typos, slang, or extra contractions to “sound human.” Elevate prose is often fully expanded.',
     '- Inline cite important claims in paragraph text as [1], [2], matching references[].id.',
     '- References must be real papers you can name accurately (real title, authors, venue, year, working DOI/URL). Do not invent DOIs. If unsure, omit.',
     '- minutes: realistic 6–12.',

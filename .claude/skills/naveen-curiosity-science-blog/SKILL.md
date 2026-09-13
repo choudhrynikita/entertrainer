@@ -100,6 +100,8 @@ Do not use weirdness as decoration. The imagined scenario must help the reader u
 
 ### 5. Draft the article
 
+Use the `human-not-model` skill as a hard gate while drafting. If a sentence would fail that gate, do not write it.
+
 Use this default architecture, adapting length to the request:
 
 ```text

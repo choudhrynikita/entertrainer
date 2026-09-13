@@ -12,6 +12,7 @@
     "preview": "nuxt preview",
     "gifs": "node scripts/prefetch-gifs.mjs",
     "check:paper-signal": "node scripts/check-paper-signal.mjs",
+    "check:voice": "node --experimental-strip-types scripts/check-human-not-model.mjs",
     "smoke:dialogue": "node scripts/dialogue-smoke.mjs"
   },
   "dependencies": {

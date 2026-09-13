@@ -120,6 +120,18 @@ export const BLOG_POSTS: BlogPost[] = [
     heroAlt: 'Cream field of galaxy dots: faint yesterday under bold today, soft dashed rays from a yellow-held centre where one person’s two photos stack.',
     status: 'published',
     publishedAt: '2026-09-09T19:06:00+00:00'
+  },
+  {
+    slug: 'you-only-find-out-when-you-have-to-explain-it',
+    title: 'You Only Find Out You Don’t Know It When You Have to Explain It',
+    dek: 'The feeling of knowing arrives first, and cheaply. A zip, a policy, a search bar — they all sell you a working model. The model is often just a label with good lighting.',
+    category: 'Mind',
+    tags: ['cognition', 'psychology', 'metacognition'],
+    minutes: 9,
+    hero: '/blog/feeling-of-knowing/hero.jpg',
+    heroAlt: 'A black ink silhouette of a head in profile on cream paper; a zipper opens across the mind and reveals only empty dashed lines, with one cobalt-blue pull-tab.',
+    status: 'published',
+    publishedAt: '2026-09-13T10:15:00+00:00'
   }
 ]
 
@@ -133,4 +145,5 @@ export const LIFE_MIDPOINT_BLOG = BLOG_POSTS[5]
 export const LIE_PERFECTLY_BLOG = BLOG_POSTS[6]
 export const INNER_SPEECH_BLOG = BLOG_POSTS[7]
 export const CENTRE_UNIVERSE_BLOG = BLOG_POSTS[8]
+export const KNOWING_BLOG = BLOG_POSTS[9]
 export const FEATURED_BLOG = ENTROPY_BLOG

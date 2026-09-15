@@ -420,3 +420,22 @@ html.astroclock-rem {
   background: #0B0C10;
   overflow: hidden;
 }
+
+/* You drawer — chronograph life counter */
+.astroclock-root .ac-chrono-cell {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  min-height: 4.25rem;
+}
+.astroclock-root .ac-chrono-cell-on {
+  border-color: rgba(212, 175, 55, 0.55);
+  background: rgba(212, 175, 55, 0.12);
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.15);
+}
+.astroclock-root .ac-day-msg {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #161822;
+}
+.astroclock-root .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

@@ -158,13 +158,13 @@ describe('Design lane — welcome + tour contracts', () => {
     expect(c).toMatch(/indian philosophy|astrology/);
   });
 
-  it('tour steps: setup → dial → today → profile; onboard flag key', () => {
+  it('tour steps: setup → dial → today → you; onboard flag key', () => {
     expect(TOUR_STEP_IDS).toEqual([
       'welcome',
       'setup',
       'dial',
       'today',
-      'profile',
+      'you',
     ]);
     expect(ONBOARD_KEY).toBe('astroclock-onboarded-v1');
   });

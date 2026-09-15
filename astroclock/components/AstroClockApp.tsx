@@ -28,6 +28,7 @@ import { birthDateObj, clearConfig, loadConfig, saveConfig } from '@astroclock/l
 import { formatMsClock, scrubHint } from '@astroclock/lib/format';
 import { TopBar, type MainView } from './TopBar';
 import { ClockCanvas, type FrameCache } from './ClockCanvas';
+import { BauhausClock } from './BauhausClock';
 import { HUD } from './HUD';
 import { ConfigDrawer } from './ConfigDrawer';
 import { PlanetDrawer, type PlanetDetail } from './PlanetDrawer';
@@ -49,6 +50,7 @@ export function AstroClockApp() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [view, setView] = useState<MainView>('dial');
+  const [dialFlipped, setDialFlipped] = useState(false);
   const [visible, setVisible] = useState(true);
   const [natalLons, setNatalLons] = useState<LonMap | null>(null);
   const [natalLerp, setNatalLerp] = useState(1);
@@ -104,6 +106,10 @@ export function AstroClockApp() {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
+  useEffect(() => {
+    if (view !== 'dial') setDialFlipped(false);
+  }, [view]);
+
   /* Keep TopBar clocks alive when dial canvas is not painting. */
   useEffect(() => {
     if (view === 'dial') return;
@@ -118,12 +124,12 @@ export function AstroClockApp() {
     return () => window.clearInterval(id);
   }, [view, simTime, live, visible]);
 
-  /* After display:none → block, force layout so canvas recovers size. */
+  /* After display:none → block / flip, force layout so canvases recover size. */
   useEffect(() => {
     if (view !== 'dial') return;
     const id = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
     return () => cancelAnimationFrame(id);
-  }, [view]);
+  }, [view, dialFlipped]);
 
   useEffect(() => {
     if (!live || !visible) return;
@@ -382,20 +388,36 @@ export function AstroClockApp() {
           className={`absolute inset-0 ${view === 'dial' ? '' : 'hidden'}`}
           aria-hidden={view !== 'dial'}
         >
-          <ClockCanvas
-            simTime={simTime}
-            lat={+birth.lat}
-            lon={+birth.lon}
-            natalLons={currentNatal}
-            natalLerp={natalLerp}
-            selected={selected}
-            visible={visible && view === 'dial'}
-            onFrame={onFrame}
-            onSelect={handleSelect}
-            onNatalLerpTick={() => {}}
-          />
+          <div className="ac-flip-stage absolute inset-0">
+            <div
+              className={`ac-flip-inner ${dialFlipped ? 'is-flipped' : ''}`}
+            >
+              <div className="ac-flip-face ac-flip-front">
+                <ClockCanvas
+                  simTime={simTime}
+                  lat={+birth.lat}
+                  lon={+birth.lon}
+                  natalLons={currentNatal}
+                  natalLerp={natalLerp}
+                  selected={selected}
+                  visible={visible && view === 'dial'}
+                  onFrame={onFrame}
+                  onSelect={handleSelect}
+                  onNatalLerpTick={() => {}}
+                  onEmptyTap={() => setDialFlipped(true)}
+                />
+              </div>
+              <div className="ac-flip-face ac-flip-back">
+                <BauhausClock
+                  simTime={simTime}
+                  visible={visible && view === 'dial' && dialFlipped}
+                  onFlipBack={() => setDialFlipped(false)}
+                />
+              </div>
+            </div>
+          </div>
           {showSim && view === 'dial' && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in z-10">
               SIM <span>{simLabel}</span>
             </div>
           )}

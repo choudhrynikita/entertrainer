@@ -410,7 +410,7 @@ export function AstroClockApp() {
             <button
               type="button"
               onClick={handleToggleLive}
-              className={`chip rounded-lg px-3 py-2 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
+              className={`ac-chip rounded-lg px-3 py-2 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
                 live ? 'active' : ''
               }`}
             >

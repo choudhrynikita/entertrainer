@@ -51,6 +51,15 @@ onUnmounted(() => {
 </template>
 
 <style>
+/*
+  Entertrainer's main.css sets `html { font-size: 1px }` so site rem == px.
+  Tailwind utilities (max-w-md, spacing, etc.) assume a normal 16px rem.
+  This bare page owns the document — restore a standard root so the dial
+  is not crushed to a 28px-wide strip.
+*/
+html {
+  font-size: 16px !important;
+}
 html,
 body,
 #__nuxt {
@@ -61,6 +70,7 @@ body,
 .astroclock-host {
   min-height: 100dvh;
   height: 100%;
+  width: 100%;
   background: #0b0c10;
 }
 </style>

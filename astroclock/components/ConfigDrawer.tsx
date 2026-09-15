@@ -268,7 +268,7 @@ export function ConfigDrawer({
                     key={key}
                     type="button"
                     onClick={() => applyPreset(key)}
-                    className={`chip rounded-full px-2.5 py-1 text-[10px] ${
+                    className={`ac-chip rounded-full px-2.5 py-1 text-[10px] ${
                       active ? 'active' : ''
                     }`}
                   >
@@ -285,7 +285,7 @@ export function ConfigDrawer({
                     placeLabel: draft.placeLabel || 'Manual',
                   })
                 }
-                className={`chip rounded-full px-2.5 py-1 text-[10px] ${
+                className={`ac-chip rounded-full px-2.5 py-1 text-[10px] ${
                   draft.preset === 'manual' || draft.preset === 'search'
                     ? 'active'
                     : ''
@@ -351,7 +351,7 @@ export function ConfigDrawer({
             <button
               type="button"
               onClick={onReset}
-              className="rounded-xl chip px-4 py-3 text-sm text-mist/70"
+              className="rounded-xl ac-chip px-4 py-3 text-sm text-mist/70"
             >
               Reset
             </button>

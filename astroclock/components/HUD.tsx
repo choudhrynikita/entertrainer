@@ -36,7 +36,7 @@ export function HUD({
     <footer className="shrink-0 border-t border-white/10 glass max-h-[42vh] overflow-y-auto">
       <div className="px-3 py-2 space-y-2">
         <div className="grid grid-cols-2 gap-2 text-[10px]">
-          <div className="chip rounded-lg px-2.5 py-2">
+          <div className="ac-chip rounded-lg px-2.5 py-2">
             <div className="text-mist/50 uppercase tracking-wider text-[9px]">
               Mahadasha
             </div>
@@ -46,7 +46,7 @@ export function HUD({
             </div>
             <div className="font-medium text-sky truncate">{antar}</div>
           </div>
-          <div className="chip rounded-lg px-2.5 py-2">
+          <div className="ac-chip rounded-lg px-2.5 py-2">
             <div className="text-mist/50 uppercase tracking-wider text-[9px]">
               Tithi
             </div>
@@ -71,7 +71,7 @@ export function HUD({
                 key={g.id}
                 type="button"
                 onClick={() => onSelect(g.id)}
-                className={`chip graha-chip shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium flex items-center gap-1 ${
+                className={`ac-chip graha-chip shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium flex items-center gap-1 ${
                   active ? 'active' : ''
                 } ${retro ? 'retro' : ''}`}
               >
@@ -85,7 +85,7 @@ export function HUD({
           })}
         </div>
 
-        <div className="chip rounded-lg px-2.5 py-2">
+        <div className="ac-chip rounded-lg px-2.5 py-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[9px] uppercase tracking-wider text-mist/50">
               Harmonic Resonance
@@ -104,7 +104,7 @@ export function HUD({
           <button
             type="button"
             onClick={onToggleLive}
-            className={`chip rounded-lg px-3 py-2 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
+            className={`ac-chip rounded-lg px-3 py-2 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
               live ? 'active' : ''
             }`}
           >

@@ -60,7 +60,7 @@ export function ProfileDrawer({
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-4 pb-10">
           {isDemo || !profile ? (
-            <div className="chip rounded-xl px-4 py-6 text-center space-y-3">
+            <div className="ac-chip rounded-xl px-4 py-6 text-center space-y-3">
               <p className="text-sm text-mist/80">
                 Save your birth details to unlock a placement-accurate profile
                 reading.
@@ -82,7 +82,7 @@ export function ProfileDrawer({
             </div>
           ) : (
             <>
-              <article className="chip rounded-xl px-3 py-3 space-y-2">
+              <article className="ac-chip rounded-xl px-3 py-3 space-y-2">
                 <h3 className="text-[11px] font-semibold tracking-wide text-gold">
                   Profile summary
                 </h3>
@@ -96,7 +96,7 @@ export function ProfileDrawer({
                 ))}
               </article>
 
-              <article className="chip rounded-xl px-3 py-3 space-y-2 border border-jade/25">
+              <article className="ac-chip rounded-xl px-3 py-3 space-y-2 border border-jade/25">
                 <h3 className="text-[11px] font-semibold tracking-wide text-jade">
                   {profile.advice.title}
                 </h3>
@@ -123,7 +123,7 @@ export function ProfileDrawer({
               </article>
 
               <div className="grid grid-cols-3 gap-2 text-[10px]">
-                <div className="chip rounded-lg px-2 py-2">
+                <div className="ac-chip rounded-lg px-2 py-2">
                   <div className="text-mist/45 uppercase tracking-wider text-[8px]">
                     Rising
                   </div>
@@ -134,7 +134,7 @@ export function ProfileDrawer({
                     {profile.lagna.degree.toFixed(1)}° · {profile.lagna.lord}
                   </div>
                 </div>
-                <div className="chip rounded-lg px-2 py-2">
+                <div className="ac-chip rounded-lg px-2 py-2">
                   <div className="text-mist/45 uppercase tracking-wider text-[8px]">
                     Moon
                   </div>
@@ -145,7 +145,7 @@ export function ProfileDrawer({
                     {profile.moon.nakshatra} p{profile.moon.pada}
                   </div>
                 </div>
-                <div className="chip rounded-lg px-2 py-2">
+                <div className="ac-chip rounded-lg px-2 py-2">
                   <div className="text-mist/45 uppercase tracking-wider text-[8px]">
                     Sun
                   </div>
@@ -158,7 +158,7 @@ export function ProfileDrawer({
                 </div>
               </div>
 
-              <div className="chip rounded-xl px-3 py-2.5">
+              <div className="ac-chip rounded-xl px-3 py-2.5">
                 <div className="text-[9px] uppercase tracking-wider text-mist/50 mb-1">
                   Dominant themes
                 </div>
@@ -171,7 +171,7 @@ export function ProfileDrawer({
                 </ul>
               </div>
 
-              <div className="chip rounded-xl px-3 py-2.5 overflow-x-auto">
+              <div className="ac-chip rounded-xl px-3 py-2.5 overflow-x-auto">
                 <div className="text-[9px] uppercase tracking-wider text-mist/50 mb-1.5">
                   Planet map
                 </div>
@@ -201,7 +201,7 @@ export function ProfileDrawer({
               {profile.sections.map((sec) => (
                 <article
                   key={sec.id}
-                  className="chip rounded-xl px-3 py-3 space-y-2"
+                  className="ac-chip rounded-xl px-3 py-3 space-y-2"
                 >
                   <h3 className="text-[11px] font-semibold tracking-wide text-gold">
                     {sec.title}

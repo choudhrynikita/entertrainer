@@ -32,7 +32,7 @@ export function TopBar({
             AstroClock
           </h1>
           <div
-            className="inline-flex rounded-full chip p-0.5 text-[9px] uppercase tracking-wider"
+            className="inline-flex rounded-full ac-chip p-0.5 text-[9px] uppercase tracking-wider"
             role="tablist"
             aria-label="Main view"
           >

@@ -1,6 +1,37 @@
 import { fileURLToPath } from 'node:url'
-import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+
+// AstroClock is a React island under /engage/astroclock.
+// Do NOT use @vitejs/plugin-react here: Nuxt 3.17 pins Vite 6, but
+// plugin-react@5 resolves top-level Vite 8 / Rolldown and injects
+// builtin:vite-react-refresh-wrapper, which crashes DEV with
+// "Missing field moduleType" (File: [object Object]).
+// Compile .tsx via Vite's esbuild JSX transform instead; HMR refresh
+// for the island is unnecessary (full remount on edit is fine).
+function astroclockReactJsx() {
+  return {
+    name: 'astroclock-react-jsx',
+    // After @vitejs/plugin-vue-jsx (Nuxt unshifts it), restore esbuild
+    // coverage for the React island. vue-jsx sets `esbuild.include` to
+    // /\.ts$/ only, which would otherwise leave .tsx untransformed once
+    // we exclude astroclock/ from the Vue JSX plugin.
+    config() {
+      return {
+        esbuild: {
+          jsx: 'automatic',
+          jsxImportSource: 'react',
+          include: /\.ts$|(?:^|[\\/])astroclock[\\/].*\.[jt]sx$/,
+        },
+        optimizeDeps: {
+          esbuildOptions: {
+            jsx: 'automatic',
+            jsxImportSource: 'react',
+          },
+        },
+      }
+    },
+  }
+}
 
 export default defineNuxtConfig({
   devtools: { enabled: false },
@@ -209,14 +240,23 @@ export default defineNuxtConfig({
     '@astroclock': fileURLToPath(new URL('./astroclock', import.meta.url)),
   },
   vite: {
+    // Keep Vue JSX off the React island. Every .tsx in this repo is AstroClock.
+    vueJsx: {
+      exclude: /(?:^|[\\/])astroclock[\\/]/,
+    },
     plugins: [
-      // React island for /engage/astroclock (AstroClock UI + canvas).
-      react({ include: /\.(jsx|tsx)$/ }),
+      astroclockReactJsx(),
       // Tailwind only processes files under astroclock/ via @source in CSS.
       tailwindcss(),
     ],
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react/jsx-runtime', 'lucide-react'],
+      include: [
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'lucide-react',
+      ],
     },
   },
   // Ensure .tsx under astroclock compiles with the React JSX transform.
@@ -227,7 +267,7 @@ export default defineNuxtConfig({
       },
     },
   },
-    nitro: {
+  nitro: {
     preset: 'vercel',
     externals: {
       // Keep Playwright deps external in case the pw backup is ever re-enabled

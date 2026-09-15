@@ -13,9 +13,8 @@ useSeoMeta({
 /*
   Entertrainer's main.css uses `html { font-size: 1px }` (rem == px).
   Tailwind utilities on this island assume a normal 16px rem.
-  Put the override in useHead (cleared on leave) + a JS safety net —
-  NEVER in an unscoped <style> block: Vite keeps page CSS chunks linked
-  after client navigations, which would leave Engage at 16× scale.
+  useHead style for first paint + class-gated CSS + JS important safety net.
+  NEVER bare `html { font-size }` in unscoped CSS — Vite keeps chunks linked.
 */
 useHead({
   htmlAttrs: {
@@ -37,8 +36,28 @@ let root: Root | null = null
 let prevNuxtHeight = ''
 let prevNuxtMargin = ''
 let prevNuxtBg = ''
+/** Prior inline font-size from before AstroClock (not useHead's first-paint 16px). */
+let prevHtmlFontSize: string | null = null
+let prevHtmlFontSizePriority = ''
+let hadAstroclockRem = false
 
 onMounted(async () => {
+  const html = document.documentElement
+  const existing = html.style.getPropertyValue('font-size')
+  const existingPri = html.style.getPropertyPriority('font-size')
+  // useHead already sets font-size:16px for first paint — do not treat that as "prior"
+  // to restore on leave (would keep Engage at rem=16px).
+  if (existing && !(existing === '16px' && existingPri !== 'important')) {
+    prevHtmlFontSize = existing
+    prevHtmlFontSizePriority = existingPri
+  } else {
+    prevHtmlFontSize = null
+    prevHtmlFontSizePriority = ''
+  }
+  hadAstroclockRem = html.classList.contains('astroclock-rem')
+  html.classList.add('astroclock-rem')
+  html.style.setProperty('font-size', '16px', 'important')
+
   const nuxt = document.getElementById('__nuxt')
   if (nuxt) {
     prevNuxtHeight = nuxt.style.height
@@ -62,6 +81,14 @@ onMounted(async () => {
 onUnmounted(() => {
   root?.unmount()
   root = null
+
+  const html = document.documentElement
+  if (!hadAstroclockRem) html.classList.remove('astroclock-rem')
+  html.style.removeProperty('font-size')
+  if (prevHtmlFontSize != null) {
+    html.style.setProperty('font-size', prevHtmlFontSize, prevHtmlFontSizePriority || undefined)
+  }
+
   const nuxt = document.getElementById('__nuxt')
   if (nuxt) {
     nuxt.style.height = prevNuxtHeight

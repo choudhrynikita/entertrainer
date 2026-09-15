@@ -1,6 +1,10 @@
 /**
- * In-place dual-face tile flip: each piece rotates ~180° around its own center.
- * Parallax = staggered delay only — no scatter / fly-apart translation.
+ * True 3D AstroClock morph flip (not tile mosaic):
+ *  - Circular back plate rotateY 180° (sky ↔ Bauhaus)
+ *  - Concentric rings rotateZ while colors morph
+ *  - Hands/aspect rays rotate + merge into Bauhaus H/M/S
+ *  - Bottom decks flip upward row-by-row (rotateX)
+ * Top bar is outside this stage and never flips.
  */
 import {
   FLIP_STAGGER_MS,
@@ -8,9 +12,15 @@ import {
   type FlipDirection,
 } from './types';
 
-const EASE = 'cubic-bezier(0.37, 0, 0.63, 1)'; /* ease-in-out — readable mid-flip */
-const TILE_MS = 860;
-const Z_PULSE = 4; /* ≤8px optional depth pulse */
+const EASE = 'cubic-bezier(0.37, 0, 0.63, 1)';
+const PLATE_MS = 980;
+const RING_MS = 1100;
+const HAND_MS = 1050;
+const DECK_MS = 720;
+const GOLD = '#D4AF37';
+const FACE = '#161822';
+const INK = '#0B0C10';
+const RIBBON = ['#81C784', '#D4AF37', '#E57373'];
 
 export interface CascadeHandles {
   cancel: () => void;
@@ -40,25 +50,47 @@ function snapshotCanvas(root: HTMLElement | null): string {
   const canvas = root.querySelector('canvas');
   if (!canvas || canvas.width <= 0 || canvas.height <= 0) return '';
   try {
-    return canvas.toDataURL('image/jpeg', 0.88);
+    return canvas.toDataURL('image/jpeg', 0.9);
   } catch {
     return '';
   }
 }
 
-function makeOverlayRoot(stage: HTMLElement): HTMLElement {
+function dialTarget(
+  skyLayer: HTMLElement | null,
+  bauhausLayer: HTMLElement | null,
+): HTMLElement | null {
+  const bauInner =
+    bauhausLayer?.querySelector('.ac-dial-square-inner') as HTMLElement | null;
+  if (bauInner && bauInner.clientWidth > 0) return bauInner;
+  const skyInner =
+    skyLayer?.querySelector('.ac-dial-square-inner') as HTMLElement | null;
+  if (skyInner) return skyInner;
+  return (
+    (skyLayer?.querySelector('canvas')?.parentElement as HTMLElement | null) ||
+    skyLayer ||
+    bauhausLayer
+  );
+}
+
+function makeOverlay(stage: HTMLElement, hudRoot: HTMLElement | null): HTMLElement {
   const root = document.createElement('div');
-  root.className = 'ac-cascade-overlay ac-inplace-overlay';
+  root.className = 'ac-cascade-overlay ac-clock-flip-overlay';
   root.setAttribute('aria-hidden', 'true');
   const sr = stage.getBoundingClientRect();
+  let height = sr.height;
+  if (hudRoot) {
+    const hr = hudRoot.getBoundingClientRect();
+    height = Math.max(height, hr.bottom - sr.top + 8);
+  }
   Object.assign(root.style, {
     position: 'fixed',
     left: `${sr.left}px`,
     top: `${sr.top}px`,
     width: `${sr.width}px`,
-    height: `${sr.height}px`,
-    perspective: '1400px',
-    perspectiveOrigin: '50% 42%',
+    height: `${height}px`,
+    perspective: '1600px',
+    perspectiveOrigin: '50% 38%',
     pointerEvents: 'none',
     zIndex: '80',
     overflow: 'visible',
@@ -68,7 +100,6 @@ function makeOverlayRoot(stage: HTMLElement): HTMLElement {
 }
 
 function faceStyles(extra: Record<string, string> = {}): Record<string, string> {
-  /* Do NOT set overflow:hidden here — it breaks backface-visibility in Chromium. */
   return {
     position: 'absolute',
     inset: '0',
@@ -81,278 +112,489 @@ function faceStyles(extra: Record<string, string> = {}): Record<string, string> 
   };
 }
 
-/** Dual-face tile locked to its home seat — rotateY only (+ tiny Z pulse). */
-function makeDualTile(opts: {
-  overlay: HTMLElement;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  frontBg: string;
-  backBg: string;
-  borderRadius?: string;
-  zIndex?: number;
-  className?: string;
-}): HTMLElement {
-  const wrap = document.createElement('div');
-  wrap.className = `ac-inplace-tile ${opts.className ?? ''}`.trim();
-  Object.assign(wrap.style, {
-    position: 'absolute',
-    left: `${opts.left}px`,
-    top: `${opts.top}px`,
-    width: `${Math.max(opts.width, 4)}px`,
-    height: `${Math.max(opts.height, 4)}px`,
-    margin: '0',
-    transformStyle: 'preserve-3d',
-    WebkitTransformStyle: 'preserve-3d',
-    transformOrigin: '50% 50%',
-    willChange: 'transform',
-    zIndex: String(opts.zIndex ?? 2),
-    borderRadius: opts.borderRadius ?? '3px',
-  });
-
-  const front = document.createElement('div');
-  front.className = 'ac-inplace-face ac-inplace-front';
-  Object.assign(front.style, faceStyles({
-    transform: 'rotateY(0deg) translateZ(1px)',
-    boxShadow: 'inset 0 0 0 1px rgba(212,175,55,0.22)',
-  }));
-  applyBg(front, opts.frontBg);
-
-  const back = document.createElement('div');
-  back.className = 'ac-inplace-face ac-inplace-back';
-  Object.assign(back.style, faceStyles({
-    transform: 'rotateY(180deg) translateZ(1px)',
-    boxShadow: 'inset 0 0 0 1px rgba(212,175,55,0.18)',
-  }));
-  applyBg(back, opts.backBg);
-
-  wrap.appendChild(front);
-  wrap.appendChild(back);
-  /* Default: front visible, back hidden until flip (to-sky overrides via WAAPI fill:both). */
-  back.style.opacity = '0';
-  opts.overlay.appendChild(wrap);
-  return wrap;
+function civilHandAngles(ms: number): { hour: number; minute: number; second: number } {
+  const d = new Date(ms);
+  const sec = d.getSeconds() + d.getMilliseconds() / 1000;
+  const minute = d.getMinutes() + sec / 60;
+  const hour = (d.getHours() % 12) + minute / 60;
+  return {
+    hour: (hour / 12) * 360,
+    minute: (minute / 60) * 360,
+    second: (sec / 60) * 360,
+  };
 }
 
-function cropBg(
-  url: string,
-  fullW: number,
-  fullH: number,
-  col: number,
-  row: number,
-  cols: number,
-  rows: number,
-  fallback: string,
-  cssVar?: '--ac-sky-shot' | '--ac-bau-shot',
-): string {
-  if (!url || fullW <= 0 || fullH <= 0) return fallback;
-  const tw = fullW / cols;
-  const th = fullH / rows;
-  return JSON.stringify({
-    image: cssVar ? `var(${cssVar})` : `url(${url})`,
-    position: `${-col * tw}px ${-row * th}px`,
-    size: `${fullW}px ${fullH}px`,
-    repeat: 'no-repeat',
-  });
+/** Sky-side “aspect rays” — colorful, shorter, offset from civil hands. */
+function skyRayAngles(ms: number): { hour: number; minute: number; second: number } {
+  const civil = civilHandAngles(ms);
+  return {
+    hour: (civil.hour + 48) % 360,
+    minute: (civil.minute + 112) % 360,
+    second: (civil.second + 196) % 360,
+  };
 }
 
-function applyBg(el: HTMLElement, spec: string) {
-  if (spec.startsWith('{')) {
-    try {
-      const o = JSON.parse(spec) as {
-        image: string;
-        position: string;
-        size: string;
-        repeat: string;
-      };
-      el.style.backgroundImage = o.image;
-      el.style.backgroundPosition = o.position;
-      el.style.backgroundSize = o.size;
-      el.style.backgroundRepeat = o.repeat;
-      return;
-    } catch {
-      /* fall through */
-    }
-  }
-  el.style.background = spec;
-}
-
-function spawnDialGrid(opts: {
+function spawnClockRig(opts: {
   overlay: HTMLElement;
   stageRect: DOMRect;
   dialEl: HTMLElement;
   skyUrl: string;
   bauUrl: string;
-  cols: number;
-  rows: number;
-}): { tiles: HTMLElement[]; delays: number[] } {
-  const { overlay, stageRect, dialEl, skyUrl, bauUrl, cols, rows } = opts;
+  direction: FlipDirection;
+  bucket: Animation[];
+}): HTMLElement {
+  const { overlay, stageRect, dialEl, skyUrl, bauUrl, direction, bucket } = opts;
   const dr = rectOf(dialEl);
-  const tiles: HTMLElement[] = [];
-  const delays: number[] = [];
-  const tw = dr.width / cols;
-  const th = dr.height / rows;
-  const cx = cols / 2 - 0.5;
-  const cy = rows / 2 - 0.5;
+  const size = Math.min(dr.width, dr.height);
+  const left = dr.left - stageRect.left + (dr.width - size) / 2;
+  const top = dr.top - stageRect.top + (dr.height - size) / 2;
 
-  type Cell = { col: number; row: number; ring: number };
-  const cells: Cell[] = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const ring = Math.max(Math.abs(col - cx), Math.abs(row - cy));
-      cells.push({ col, row, ring });
-    }
-  }
-  /* Outer ring leads (Transformers peel), inner trails. */
-  cells.sort((a, b) => a.ring - b.ring || a.row - b.row || a.col - b.col);
+  const toBau = direction === 'to-bauhaus';
+  const plateStart = toBau ? 0 : 180;
+  const plateEnd = toBau ? 180 : 360;
 
-  const maxRing = cells.reduce((m, c) => Math.max(m, c.ring), 0) || 1;
-
-  cells.forEach((cell, i) => {
-    const { col, row, ring } = cell;
-    const left = dr.left - stageRect.left + col * tw;
-    const top = dr.top - stageRect.top + row * th;
-    const g = 18 + ((row * cols + col) % 5) * 4;
-    const skyFallback = `linear-gradient(145deg, rgb(${g + 12},${g + 10},${g + 28}), #0B0C10)`;
-    const bauFallback = `linear-gradient(160deg, #1a1c28, #12141c ${40 + (i % 4) * 8}%, #161822)`;
-
-    const tile = makeDualTile({
-      overlay,
-      left,
-      top,
-      width: tw + 0.6,
-      height: th + 0.6,
-      frontBg: cropBg(skyUrl, dr.width, dr.height, col, row, cols, rows, skyFallback, '--ac-sky-shot'),
-      backBg: cropBg(bauUrl, dr.width, dr.height, col, row, cols, rows, bauFallback, '--ac-bau-shot'),
-      borderRadius: '2px',
-      zIndex: 2,
-      className: 'ac-inplace-dial',
-    });
-    tiles.push(tile);
-    /* Ring-index stagger ~55–70ms */
-    delays.push(Math.round((ring / maxRing) * (FLIP_STAGGER_MS * (cols + rows) * 0.55) + (i % 3) * 8));
+  const rig = document.createElement('div');
+  rig.className = 'ac-clock-rig';
+  Object.assign(rig.style, {
+    position: 'absolute',
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+    transformStyle: 'preserve-3d',
+    WebkitTransformStyle: 'preserve-3d',
+    transformOrigin: '50% 50%',
+    zIndex: '4',
   });
 
-  return { tiles, delays };
-}
+  /* —— Dual-face circular plate (true rotateY 180) —— */
+  const plate = document.createElement('div');
+  plate.className = 'ac-clock-plate';
+  Object.assign(plate.style, {
+    position: 'absolute',
+    inset: '0',
+    borderRadius: '50%',
+    transformStyle: 'preserve-3d',
+    WebkitTransformStyle: 'preserve-3d',
+    transformOrigin: '50% 50%',
+    boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
+    willChange: 'transform',
+  });
 
-/** Rim arc tiles — front = sky rim crop, back = ribbon-colored wedge. */
-function spawnRimTiles(opts: {
-  overlay: HTMLElement;
-  stageRect: DOMRect;
-  dialEl: HTMLElement;
-  skyUrl: string;
-  count: number;
-}): { tiles: HTMLElement[]; delays: number[] } {
-  const { overlay, stageRect, dialEl, skyUrl, count } = opts;
-  const dr = rectOf(dialEl);
-  const cx = dr.left - stageRect.left + dr.width / 2;
-  const cy = dr.top - stageRect.top + dr.height / 2;
-  const R = Math.min(dr.width, dr.height) * 0.48;
-  const ribbon = ['#81C784', '#D4AF37', '#E57373', '#81C784', '#D4AF37', '#E57373', '#81C784', '#D4AF37', '#E57373', '#D4AF37'];
-  const tiles: HTMLElement[] = [];
-  const delays: number[] = [];
+  const front = document.createElement('div');
+  front.className = 'ac-clock-face ac-clock-face-sky';
+  Object.assign(front.style, faceStyles({
+    borderRadius: '50%',
+    transform: 'rotateY(0deg) translateZ(1.5px)',
+    background: skyUrl
+      ? `center / cover no-repeat url(${skyUrl})`
+      : `radial-gradient(circle at 50% 42%, #1c2030, ${INK})`,
+    boxShadow: `inset 0 0 0 1.5px rgba(212,175,55,0.28)`,
+    overflow: 'hidden',
+  }));
 
-  for (let i = 0; i < count; i++) {
-    const a0 = -Math.PI / 2 + (i / count) * Math.PI * 2;
-    const a1 = -Math.PI / 2 + ((i + 1) / count) * Math.PI * 2;
-    const am = (a0 + a1) / 2;
-    const sizeW = R * 0.42;
-    const sizeH = R * 0.28;
-    const left = cx + Math.cos(am) * R * 0.92 - sizeW / 2;
-    const top = cy + Math.sin(am) * R * 0.92 - sizeH / 2;
+  const back = document.createElement('div');
+  back.className = 'ac-clock-face ac-clock-face-bau';
+  Object.assign(back.style, faceStyles({
+    borderRadius: '50%',
+    transform: 'rotateY(180deg) translateZ(1.5px)',
+    background: bauUrl
+      ? `center / cover no-repeat url(${bauUrl})`
+      : `radial-gradient(circle at 50% 45%, ${FACE}, ${INK})`,
+    boxShadow: `inset 0 0 0 1.5px rgba(212,175,55,0.22)`,
+    overflow: 'hidden',
+  }));
 
-    const skyFallback = 'linear-gradient(90deg, rgba(212,175,55,0.3), #161822)';
-    let frontBg = skyFallback;
-    if (skyUrl) {
-      /* Approximate rim crop from dial snapshot */
-      const fx = (Math.cos(am) * 0.42 + 0.5) * dr.width;
-      const fy = (Math.sin(am) * 0.42 + 0.5) * dr.height;
-      frontBg = `url(${skyUrl}) ${-(fx - sizeW / 2)}px ${-(fy - sizeH / 2)}px / ${dr.width}px ${dr.height}px no-repeat`;
-    }
-    const backBg = `linear-gradient(90deg, ${ribbon[i % ribbon.length]}cc, ${ribbon[i % ribbon.length]}66)`;
+  plate.appendChild(front);
+  plate.appendChild(back);
+  if (!toBau) {
+    front.style.opacity = '0';
+    back.style.opacity = '1';
+  } else {
+    front.style.opacity = '1';
+    back.style.opacity = '0';
+  }
 
-    const tile = makeDualTile({
-      overlay,
-      left,
-      top,
-      width: sizeW,
-      height: sizeH,
-      frontBg,
-      backBg,
-      borderRadius: '4px',
-      zIndex: 3,
-      className: 'ac-inplace-rim',
+  /* Opacity swap at meridian so neither face reads mirrored. */
+  bucket.push(
+    front.animate(
+      toBau
+        ? [
+            { opacity: 1, offset: 0 },
+            { opacity: 1, offset: 0.48 },
+            { opacity: 0, offset: 0.52 },
+            { opacity: 0, offset: 1 },
+          ]
+        : [
+            { opacity: 0, offset: 0 },
+            { opacity: 0, offset: 0.48 },
+            { opacity: 1, offset: 0.52 },
+            { opacity: 1, offset: 1 },
+          ],
+      { duration: PLATE_MS, delay: 40, easing: 'linear', fill: 'both' },
+    ),
+  );
+  bucket.push(
+    back.animate(
+      toBau
+        ? [
+            { opacity: 0, offset: 0 },
+            { opacity: 0, offset: 0.48 },
+            { opacity: 1, offset: 0.52 },
+            { opacity: 1, offset: 1 },
+          ]
+        : [
+            { opacity: 1, offset: 0 },
+            { opacity: 1, offset: 0.48 },
+            { opacity: 0, offset: 0.52 },
+            { opacity: 0, offset: 1 },
+          ],
+      { duration: PLATE_MS, delay: 40, easing: 'linear', fill: 'both' },
+    ),
+  );
+
+  bucket.push(
+    plate.animate(
+      [
+        {
+          transform: `rotateX(0deg) rotateY(${plateStart}deg) translateZ(0px)`,
+          filter: 'brightness(1)',
+          offset: 0,
+        },
+        {
+          transform: `rotateX(8deg) rotateY(${plateStart + (plateEnd - plateStart) * 0.28}deg) translateZ(28px)`,
+          filter: 'brightness(1.2)',
+          offset: 0.28,
+        },
+        {
+          transform: `rotateX(12deg) rotateY(${(plateStart + plateEnd) / 2}deg) translateZ(42px)`,
+          filter: 'brightness(1.35)',
+          offset: 0.5,
+        },
+        {
+          transform: `rotateX(6deg) rotateY(${plateStart + (plateEnd - plateStart) * 0.72}deg) translateZ(24px)`,
+          filter: 'brightness(1.18)',
+          offset: 0.72,
+        },
+        {
+          transform: `rotateX(0deg) rotateY(${plateEnd}deg) translateZ(0px)`,
+          filter: 'brightness(1)',
+          offset: 1,
+        },
+      ],
+      { duration: PLATE_MS, delay: 20, easing: EASE, fill: 'both' },
+    ),
+  );
+
+  /* Soft under-plate ghost — keeps circle readable when plate is edge-on */
+  const ghost = document.createElement('div');
+  ghost.className = 'ac-clock-ghost';
+  Object.assign(ghost.style, {
+    position: 'absolute',
+    inset: '4%',
+    borderRadius: '50%',
+    background: skyUrl
+      ? `center / cover no-repeat url(${skyUrl})`
+      : `radial-gradient(circle, #1a1e2a, ${INK})`,
+    filter: 'blur(1.5px) brightness(0.55)',
+    opacity: '0.55',
+    zIndex: '1',
+    pointerEvents: 'none',
+  });
+  bucket.push(
+    ghost.animate(
+      toBau
+        ? [
+            { opacity: 0.55, offset: 0 },
+            { opacity: 0.35, offset: 0.5 },
+            { opacity: 0, offset: 1 },
+          ]
+        : [
+            { opacity: 0, offset: 0 },
+            { opacity: 0.3, offset: 0.45 },
+            { opacity: 0.55, offset: 1 },
+          ],
+      { duration: PLATE_MS, delay: 20, easing: 'linear', fill: 'both' },
+    ),
+  );
+  rig.appendChild(ghost);
+
+  rig.appendChild(plate);
+
+  /* —— Concentric rings (rotate while plate flips; colors morph to ribbon) —— */
+  const ringSpecs = [
+    { r: 0.98, w: 0.028, spin: toBau ? 140 : -140, delay: 0, colorFrom: 'rgba(212,175,55,0.55)', colorTo: RIBBON[0] },
+    { r: 0.82, w: 0.018, spin: toBau ? -95 : 95, delay: 55, colorFrom: 'rgba(129,199,132,0.45)', colorTo: RIBBON[1] },
+    { r: 0.64, w: 0.014, spin: toBau ? 70 : -70, delay: 110, colorFrom: 'rgba(229,115,115,0.4)', colorTo: RIBBON[2] },
+  ];
+
+  for (const spec of ringSpecs) {
+    const ring = document.createElement('div');
+    ring.className = 'ac-clock-ring';
+    const inset = ((1 - spec.r) / 2) * 100;
+    Object.assign(ring.style, {
+      position: 'absolute',
+      left: `${inset}%`,
+      top: `${inset}%`,
+      width: `${spec.r * 100}%`,
+      height: `${spec.r * 100}%`,
+      borderRadius: '50%',
+      border: `${Math.max(2, size * spec.w)}px solid ${toBau ? spec.colorFrom : spec.colorTo}`,
+      boxSizing: 'border-box',
+      pointerEvents: 'none',
+      transformStyle: 'preserve-3d',
+      zIndex: '6',
+      opacity: '0.92',
+    });
+    bucket.push(
+      ring.animate(
+        [
+          {
+            transform: `rotateZ(0deg) translateZ(8px)`,
+            borderColor: toBau ? spec.colorFrom : spec.colorTo,
+            opacity: 0.95,
+            offset: 0,
+          },
+          {
+            transform: `rotateZ(${spec.spin * 0.55}deg) translateZ(22px)`,
+            borderColor: GOLD,
+            opacity: 1,
+            offset: 0.45,
+          },
+          {
+            transform: `rotateZ(${spec.spin}deg) translateZ(6px)`,
+            borderColor: toBau ? spec.colorTo : spec.colorFrom,
+            opacity: toBau ? 0.55 : 0.9,
+            offset: 1,
+          },
+        ],
+        {
+          duration: RING_MS,
+          delay: spec.delay,
+          easing: EASE,
+          fill: 'both',
+        },
+      ),
+    );
+    rig.appendChild(ring);
+  }
+
+  /* —— Hands / aspect rays → Bauhaus H/M/S —— */
+  const now = Date.now();
+  const fromA = toBau ? skyRayAngles(now) : civilHandAngles(now);
+  const toA = toBau ? civilHandAngles(now) : skyRayAngles(now);
+  const handDefs = [
+    {
+      key: 'hour' as const,
+      fromLen: toBau ? 0.38 : 0.48,
+      toLen: toBau ? 0.48 : 0.38,
+      width: Math.max(4, size * 0.038),
+      colorFrom: '#E57373',
+      colorTo: GOLD,
+    },
+    {
+      key: 'minute' as const,
+      fromLen: toBau ? 0.55 : 0.72,
+      toLen: toBau ? 0.72 : 0.55,
+      width: Math.max(1.6, size * 0.012),
+      colorFrom: '#81C784',
+      colorTo: GOLD,
+    },
+    {
+      key: 'second' as const,
+      fromLen: toBau ? 0.62 : 0.78,
+      toLen: toBau ? 0.78 : 0.62,
+      width: Math.max(0.9, size * 0.006),
+      colorFrom: GOLD,
+      colorTo: GOLD,
+    },
+  ];
+
+  const handsLayer = document.createElement('div');
+  handsLayer.className = 'ac-clock-hands';
+  Object.assign(handsLayer.style, {
+    position: 'absolute',
+    inset: '0',
+    borderRadius: '50%',
+    pointerEvents: 'none',
+    zIndex: '8',
+    transformStyle: 'preserve-3d',
+  });
+
+  for (const h of handDefs) {
+    const pivot = document.createElement('div');
+    pivot.className = `ac-clock-hand-pivot ac-clock-hand-${h.key}`;
+    Object.assign(pivot.style, {
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      width: '0',
+      height: '0',
+      transformOrigin: '0 0',
+      willChange: 'transform',
     });
 
-    tiles.push(tile);
-    delays.push(i * Math.round(FLIP_STAGGER_MS * 0.5));
+    /* Bar along +X; rotate(civilDeg - 90) matches canvas hands (0° = 12 o'clock). */
+    const bar = document.createElement('div');
+    bar.className = 'ac-clock-hand-bar';
+    const len0 = size * h.fromLen;
+    const len1 = size * h.toLen;
+    Object.assign(bar.style, {
+      position: 'absolute',
+      left: `${-len0 * 0.12}px`,
+      top: `${-h.width / 2}px`,
+      width: `${len0}px`,
+      height: `${h.width}px`,
+      borderRadius: `${h.width}px`,
+      background: toBau ? h.colorFrom : h.colorTo,
+      boxShadow: '0 0 8px rgba(0,0,0,0.35)',
+      willChange: 'width, background, left',
+    });
+
+    const a0 = fromA[h.key];
+    const a1 = toA[h.key];
+    let delta = a1 - a0;
+    while (delta > 180) delta -= 360;
+    while (delta < -180) delta += 360;
+    const mid = a0 + delta * 0.5;
+
+    bucket.push(
+      pivot.animate(
+        [
+          { transform: `rotate(${a0 - 90}deg) translateZ(12px)`, offset: 0 },
+          { transform: `rotate(${mid - 90}deg) translateZ(28px)`, offset: 0.5 },
+          { transform: `rotate(${a0 + delta - 90}deg) translateZ(10px)`, offset: 1 },
+        ],
+        { duration: HAND_MS, delay: 80, easing: EASE, fill: 'both' },
+      ),
+    );
+    bucket.push(
+      bar.animate(
+        [
+          {
+            width: `${len0}px`,
+            left: `${-len0 * 0.12}px`,
+            background: toBau ? h.colorFrom : h.colorTo,
+            offset: 0,
+          },
+          {
+            width: `${(len0 + len1) / 2}px`,
+            left: `${-((len0 + len1) / 2) * 0.12}px`,
+            background: GOLD,
+            offset: 0.5,
+          },
+          {
+            width: `${len1}px`,
+            left: `${-len1 * 0.12}px`,
+            background: toBau ? h.colorTo : h.colorFrom,
+            offset: 1,
+          },
+        ],
+        { duration: HAND_MS, delay: 80, easing: EASE, fill: 'both' },
+      ),
+    );
+    pivot.appendChild(bar);
+    handsLayer.appendChild(pivot);
   }
-  return { tiles, delays };
+
+  /* Hub */
+  const hub = document.createElement('div');
+  Object.assign(hub.style, {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: `${Math.max(7, size * 0.04)}px`,
+    height: `${Math.max(7, size * 0.04)}px`,
+    marginLeft: `${-Math.max(7, size * 0.04) / 2}px`,
+    marginTop: `${-Math.max(7, size * 0.04) / 2}px`,
+    borderRadius: '50%',
+    background: GOLD,
+    zIndex: '9',
+    boxShadow: `0 0 0 ${Math.max(1.5, size * 0.008)}px ${INK}`,
+  });
+  handsLayer.appendChild(hub);
+  rig.appendChild(handsLayer);
+
+    /* Fade morph hands out near end so live Bauhaus canvas hands take over cleanly */
+  bucket.push(
+    handsLayer.animate(
+      toBau
+        ? [
+            { opacity: 1, offset: 0 },
+            { opacity: 1, offset: 0.72 },
+            { opacity: 0, offset: 1 },
+          ]
+        : [
+            { opacity: 0, offset: 0 },
+            { opacity: 0.35, offset: 0.2 },
+            { opacity: 1, offset: 0.45 },
+            { opacity: 1, offset: 0.78 },
+            { opacity: 0, offset: 1 },
+          ],
+      { duration: HAND_MS + 120, delay: 40, easing: 'linear', fill: 'both' },
+    ),
+  );
+
+  overlay.appendChild(rig);
+  return rig;
 }
 
-function hudBackBackground(piece: string | undefined, order: number): string {
-  const GOLD = '#D4AF37';
-  const FACE = '#161822';
-  if (piece === 'maha' || order === 0) {
-    return `linear-gradient(180deg, ${FACE}, #12141c), linear-gradient(90deg, transparent 20%, ${GOLD}33 50%, transparent 80%)`;
-  }
-  if (piece === 'tithi' || order === 1) {
+function deckBackStyle(label: string, order: number): string {
+  if (order === 0) {
     return `linear-gradient(180deg, ${FACE}, #12141c)`;
   }
-  if (piece?.startsWith('graha') || (order >= 2 && order <= 8)) {
-    const colors = ['#81C784', '#D4AF37', '#E57373'];
-    const c = colors[order % 3];
-    return `linear-gradient(135deg, ${c}55, ${FACE})`;
+  if (order === 1) {
+    return `linear-gradient(90deg, ${RIBBON[0]}33, ${FACE} 40%, ${RIBBON[1]}33 70%, ${RIBBON[2]}33)`;
   }
-  if (piece === 'harmonic' || order === 9) {
+  if (order === 2) {
     return `linear-gradient(180deg, #12141c, ${FACE})`;
   }
-  if (piece === 'live' || order === 10) {
-    return `linear-gradient(180deg, ${FACE}, #0B0C10)`;
-  }
-  /* scrub → sky dial strip */
-  return `linear-gradient(180deg, ${FACE} 0%, #12141c 100%)`;
+  return `linear-gradient(180deg, ${FACE}, ${INK})`;
+  void label;
 }
 
-function spawnHudTiles(opts: {
+function spawnDeckRows(opts: {
   overlay: HTMLElement;
   stageRect: DOMRect;
   hudRoot: HTMLElement;
-  pageRect: DOMRect;
-}): { tiles: HTMLElement[]; delays: number[] } {
-  const actors = Array.from(
-    opts.hudRoot.querySelectorAll<HTMLElement>('[data-ac-actor]'),
+  direction: FlipDirection;
+  bucket: Animation[];
+}): number {
+  const rows = Array.from(
+    opts.hudRoot.querySelectorAll<HTMLElement>('[data-ac-deck-row]'),
   );
-  const tiles: HTMLElement[] = [];
-  const delays: number[] = [];
+  if (!rows.length) return 0;
 
-  /* Overlay is stage-sized; HUD sits below stage — extend overlay via fixed page coords. */
-  actors.forEach((el, i) => {
-    const order = Number(el.dataset.acOrder ?? i);
+  const toBau = opts.direction === 'to-bauhaus';
+  let maxEnd = 0;
+
+  rows.forEach((el, i) => {
+    const order = Number(el.dataset.acDeckOrder ?? i);
+    const label = el.dataset.acDeckBack ?? '';
     const r = rectOf(el);
-    const left = r.left - opts.stageRect.left;
-    const top = r.top - opts.stageRect.top;
+    const delay = toBau
+      ? 160 + order * FLIP_STAGGER_MS
+      : 80 + (rows.length - 1 - order) * FLIP_STAGGER_MS;
 
     const wrap = document.createElement('div');
-    wrap.className = 'ac-inplace-tile ac-inplace-hud';
+    wrap.className = 'ac-deck-flip';
     Object.assign(wrap.style, {
       position: 'absolute',
-      left: `${left}px`,
-      top: `${top}px`,
+      left: `${r.left - opts.stageRect.left}px`,
+      top: `${r.top - opts.stageRect.top}px`,
       width: `${Math.max(r.width, 8)}px`,
       height: `${Math.max(r.height, 8)}px`,
       transformStyle: 'preserve-3d',
       WebkitTransformStyle: 'preserve-3d',
+      /* Center hinge + lift → readable upward flip toward camera */
       transformOrigin: '50% 50%',
-      willChange: 'transform, opacity',
-      zIndex: '5',
-      borderRadius: getComputedStyle(el).borderRadius || '8px',
+      willChange: 'transform',
+      zIndex: String(12 - order),
+      borderRadius: getComputedStyle(el).borderRadius || '10px',
     });
 
     const front = document.createElement('div');
-    front.className = 'ac-inplace-face ac-inplace-front';
+    front.className = 'ac-deck-face ac-deck-front';
     const clone = el.cloneNode(true) as HTMLElement;
     clone.removeAttribute('id');
     clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
@@ -361,139 +603,112 @@ function spawnHudTiles(opts: {
     clone.style.margin = '0';
     clone.style.pointerEvents = 'none';
     Object.assign(front.style, faceStyles({
-      transform: 'rotateY(0deg) translateZ(1px)',
-      background: 'rgba(18,20,28,0.95)',
+      transform: 'rotateX(0deg) translateZ(1px)',
+      background: 'rgba(18,20,28,0.96)',
       boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+      overflow: 'hidden',
+      borderRadius: 'inherit',
     }));
     front.appendChild(clone);
 
     const back = document.createElement('div');
-    back.className = 'ac-inplace-face ac-inplace-back';
-    const piece = el.dataset.piece;
+    back.className = 'ac-deck-face ac-deck-back';
     Object.assign(back.style, faceStyles({
-      transform: 'rotateY(180deg) translateZ(1px)',
-      background: hudBackBackground(piece, order),
+      /* rotateX(180) so after parent rotateX(-180) it reads upright */
+      transform: 'rotateX(180deg) translateZ(1px)',
+      background: deckBackStyle(label, order),
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+      borderRadius: 'inherit',
     }));
-    const label = document.createElement('div');
-    label.style.cssText =
-      'font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(224,226,236,0.55);text-align:center;padding:4px';
-    if (piece === 'maha' || order === 0) label.textContent = 'Today';
-    else if (piece === 'tithi' || order === 1) label.textContent = 'Stretches';
-    else if (piece === 'harmonic' || order === 9) label.textContent = 'Good · Mid · Hard';
-    else if (piece === 'live' || order === 10) label.textContent = 'Sky';
-    else if (piece === 'scrub' || order === 11) label.textContent = 'Sky dial';
-    else label.textContent = '';
-    back.appendChild(label);
+    if (label) {
+      const lab = document.createElement('div');
+      lab.textContent = label;
+      lab.style.cssText =
+        'font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(224,226,236,0.7);text-align:center;padding:6px;font-weight:600';
+      back.appendChild(lab);
+    }
 
     wrap.appendChild(front);
     wrap.appendChild(back);
-    back.style.opacity = '0';
+    if (toBau) {
+      back.style.opacity = '0';
+      front.style.opacity = '1';
+    } else {
+      back.style.opacity = '1';
+      front.style.opacity = '0';
+    }
     opts.overlay.appendChild(wrap);
-    tiles.push(wrap);
-    delays.push(90 + order * FLIP_STAGGER_MS);
+
+    const startX = toBau ? 0 : -180;
+    const endX = toBau ? -180 : -360;
+
+    opts.bucket.push(
+      front.animate(
+        toBau
+          ? [
+              { opacity: 1, offset: 0 },
+              { opacity: 1, offset: 0.48 },
+              { opacity: 0, offset: 0.52 },
+              { opacity: 0, offset: 1 },
+            ]
+          : [
+              { opacity: 0, offset: 0 },
+              { opacity: 0, offset: 0.48 },
+              { opacity: 1, offset: 0.52 },
+              { opacity: 1, offset: 1 },
+            ],
+        { duration: DECK_MS, delay, easing: 'linear', fill: 'both' },
+      ),
+    );
+    opts.bucket.push(
+      back.animate(
+        toBau
+          ? [
+              { opacity: 0, offset: 0 },
+              { opacity: 0, offset: 0.48 },
+              { opacity: 1, offset: 0.52 },
+              { opacity: 1, offset: 1 },
+            ]
+          : [
+              { opacity: 1, offset: 0 },
+              { opacity: 1, offset: 0.48 },
+              { opacity: 0, offset: 0.52 },
+              { opacity: 0, offset: 1 },
+            ],
+        { duration: DECK_MS, delay, easing: 'linear', fill: 'both' },
+      ),
+    );
+
+    opts.bucket.push(
+      wrap.animate(
+        [
+          {
+            transform: `translateY(0px) rotateX(${startX}deg) translateZ(0px)`,
+            filter: 'brightness(1)',
+            offset: 0,
+          },
+          {
+            transform: `translateY(-10px) rotateX(${(startX + endX) / 2}deg) translateZ(36px)`,
+            filter: 'brightness(1.3)',
+            offset: 0.5,
+          },
+          {
+            transform: `translateY(0px) rotateX(${endX}deg) translateZ(0px)`,
+            filter: 'brightness(1)',
+            offset: 1,
+          },
+        ],
+        { duration: DECK_MS, delay, easing: EASE, fill: 'both' },
+      ),
+    );
+
+    maxEnd = Math.max(maxEnd, delay + DECK_MS);
   });
 
-  void opts.pageRect;
-  return { tiles, delays };
-}
-
-function animateInPlace(
-  tile: HTMLElement,
-  delay: number,
-  direction: FlipDirection,
-  duration: number,
-  bucket: Animation[],
-  baseRotZ = 0,
-): Animation {
-  const zPrefix = baseRotZ ? `rotateZ(${baseRotZ}deg) ` : '';
-  const startY = direction === 'to-bauhaus' ? 0 : 180;
-  const endY = direction === 'to-bauhaus' ? 180 : 360;
-  const midY = (startY + endY) / 2;
-
-  const front = tile.querySelector('.ac-inplace-front') as HTMLElement | null;
-  const back = tile.querySelector('.ac-inplace-back') as HTMLElement | null;
-
-  /* Opacity crossfade at the edge-on moment — avoids mirrored front bleed
-     when backface-visibility flakes under WAAPI compositing. */
-  if (front && back) {
-    /* Hard swap at the meridian — never leave both faces transparent
-       (that read as empty gold wireframes / fake scatter). */
-    const frontOut =
-      direction === 'to-bauhaus'
-        ? [
-            { opacity: '1', offset: 0 },
-            { opacity: '1', offset: 0.49 },
-            { opacity: '0', offset: 0.5 },
-            { opacity: '0', offset: 1 },
-          ]
-        : [
-            { opacity: '0', offset: 0 },
-            { opacity: '0', offset: 0.49 },
-            { opacity: '1', offset: 0.5 },
-            { opacity: '1', offset: 1 },
-          ];
-    const backIn =
-      direction === 'to-bauhaus'
-        ? [
-            { opacity: '0', offset: 0 },
-            { opacity: '0', offset: 0.49 },
-            { opacity: '1', offset: 0.5 },
-            { opacity: '1', offset: 1 },
-          ]
-        : [
-            { opacity: '1', offset: 0 },
-            { opacity: '1', offset: 0.49 },
-            { opacity: '0', offset: 0.5 },
-            { opacity: '0', offset: 1 },
-          ];
-    bucket.push(front.animate(frontOut, { duration, delay, easing: 'linear', fill: 'both' }));
-    bucket.push(back.animate(backIn, { duration, delay, easing: 'linear', fill: 'both' }));
-  }
-
-  const keyframes = [
-    {
-      transform: `${zPrefix}translateZ(0px) rotateY(${startY}deg)`,
-      filter: 'brightness(1)',
-      offset: 0,
-    },
-    {
-      transform: `${zPrefix}translateZ(${Z_PULSE}px) rotateY(${midY}deg)`,
-      filter: 'brightness(1.35)',
-      offset: 0.5,
-    },
-    {
-      transform: `${zPrefix}translateZ(0px) rotateY(${endY}deg)`,
-      filter: 'brightness(1)',
-      offset: 1,
-    },
-  ];
-
-  return tile.animate(keyframes, {
-    duration,
-    delay,
-    easing: EASE,
-    fill: 'both',
-  });
-}
-
-function dialSnapshotTarget(
-  skyLayer: HTMLElement | null,
-  bauhausLayer: HTMLElement | null,
-): HTMLElement | null {
-  const bauInner =
-    bauhausLayer?.querySelector('.ac-dial-square-inner') as HTMLElement | null;
-  if (bauInner) return bauInner;
-  const skyInner =
-    skyLayer?.querySelector('.ac-dial-square-inner') as HTMLElement | null;
-  if (skyInner) return skyInner;
-  const canvas =
-    (skyLayer?.querySelector('canvas') as HTMLElement | null) ||
-    (bauhausLayer?.querySelector('canvas') as HTMLElement | null);
-  return canvas?.parentElement ?? skyLayer ?? bauhausLayer;
+  return maxEnd;
 }
 
 export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
@@ -539,57 +754,35 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
   }
 
   const stageRect = rectOf(stage);
-  overlay = makeOverlayRoot(stage);
-
-  /* Extend overlay downward to cover HUD clones that sit below the stage. */
-  if (hudRoot) {
-    const hr = rectOf(hudRoot);
-    const bottom = hr.bottom - stageRect.top;
-    if (bottom > stageRect.height) {
-      overlay.style.height = `${bottom + 8}px`;
-    }
-  }
+  overlay = makeOverlay(stage, hudRoot);
 
   const skyUrl = snapshotCanvas(skyLayer);
   const bauUrl = snapshotCanvas(bauhausLayer);
-  const dialEl = dialSnapshotTarget(skyLayer, bauhausLayer);
-  if (skyUrl) overlay.style.setProperty('--ac-sky-shot', `url(${skyUrl})`);
-  if (bauUrl) overlay.style.setProperty('--ac-bau-shot', `url(${bauUrl})`);
+  const dialEl = dialTarget(skyLayer, bauhausLayer);
 
-  const dialPack =
-    dialEl != null
-      ? spawnDialGrid({
-          overlay,
-          stageRect,
-          dialEl,
-          skyUrl,
-          bauUrl,
-          cols: 4,
-          rows: 4,
-        })
-      : { tiles: [] as HTMLElement[], delays: [] as number[] };
+  if (dialEl) {
+    spawnClockRig({
+      overlay,
+      stageRect,
+      dialEl,
+      skyUrl,
+      bauUrl,
+      direction,
+      bucket: animations,
+    });
+  }
 
-  const rimPack =
-    dialEl != null
-      ? spawnRimTiles({
-          overlay,
-          stageRect,
-          dialEl,
-          skyUrl,
-          count: 10,
-        })
-      : { tiles: [] as HTMLElement[], delays: [] as number[] };
-
-  const hudPack = hudRoot
-    ? spawnHudTiles({
+  const deckEnd = hudRoot
+    ? spawnDeckRows({
         overlay,
         stageRect,
         hudRoot,
-        pageRect: stageRect,
+        direction,
+        bucket: animations,
       })
-    : { tiles: [] as HTMLElement[], delays: [] as number[] };
+    : 0;
 
-  /* Hide live layers — tiles carry the mosaic. */
+  /* Hide live layers — rig + decks carry the morph. */
   if (skyLayer) {
     skyLayer.style.visibility = 'hidden';
     hidden.push(skyLayer);
@@ -600,19 +793,19 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
     hidden.push(hudRoot);
   }
 
-  /* Bauhaus sits under tiles without whole-layer rotateY (that squashed the circle). */
   if (bauhausLayer) {
     if (direction === 'to-bauhaus') {
       bauhausLayer.style.visibility = 'visible';
       animations.push(
         bauhausLayer.animate(
           [
-            { opacity: 0, filter: 'brightness(1.2)' },
+            { opacity: 0, filter: 'brightness(1.15)' },
+            { opacity: 0, offset: 0.55 },
             { opacity: 1, filter: 'brightness(1)', offset: 1 },
           ],
           {
-            duration: TILE_MS,
-            delay: Math.round(FLIP_TOTAL_MS * 0.35),
+            duration: PLATE_MS,
+            delay: 80,
             easing: EASE,
             fill: 'both',
           },
@@ -623,11 +816,11 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
         bauhausLayer.animate(
           [
             { opacity: 1, filter: 'brightness(1)' },
-            { opacity: 0, filter: 'brightness(1.15)' },
+            { opacity: 0, filter: 'brightness(1.12)' },
           ],
           {
-            duration: Math.round(TILE_MS * 0.7),
-            delay: 40,
+            duration: Math.round(PLATE_MS * 0.55),
+            delay: 30,
             easing: EASE,
             fill: 'both',
           },
@@ -636,38 +829,12 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
     }
   }
 
-  const play = (
-    tiles: HTMLElement[],
-    delays: number[],
-    reverseDelays: boolean,
-  ) => {
-    const n = tiles.length;
-    tiles.forEach((tile, i) => {
-      const d = reverseDelays
-        ? (delays[n - 1 - i] ?? (n - 1 - i) * FLIP_STAGGER_MS)
-        : (delays[i] ?? i * FLIP_STAGGER_MS);
-      const base =
-        (tile as HTMLElement & { __baseRot?: number }).__baseRot ?? 0;
-      animations.push(animateInPlace(tile, d, direction, TILE_MS, animations, base));
-    });
-  };
-
-  const reverse = direction === 'to-sky';
-  /* Rim leads outward peel; dial wave; HUD trails. */
-  play(rimPack.tiles, rimPack.delays, reverse);
-  play(dialPack.tiles, dialPack.delays, reverse);
-  play(
-    hudPack.tiles,
-    hudPack.delays,
-    reverse,
-  );
-
   if (direction === 'to-sky' && skyLayer) {
     timers.push(
       window.setTimeout(() => {
         if (cancelled) return;
         skyLayer.style.visibility = '';
-      }, Math.round(FLIP_TOTAL_MS * 0.72)),
+      }, Math.round(FLIP_TOTAL_MS * 0.68)),
     );
   }
   if (direction === 'to-sky' && hudRoot) {
@@ -676,17 +843,11 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
         if (cancelled) return;
         hudRoot.style.visibility = '';
         hudRoot.style.pointerEvents = '';
-      }, Math.round(FLIP_TOTAL_MS * 0.78)),
+      }, Math.round(FLIP_TOTAL_MS * 0.74)),
     );
   }
 
-  const maxDelay = Math.max(
-    0,
-    ...rimPack.delays,
-    ...dialPack.delays,
-    ...hudPack.delays,
-  );
-  const totalBudget = Math.max(FLIP_TOTAL_MS, maxDelay + TILE_MS + 80);
+  const totalBudget = Math.max(FLIP_TOTAL_MS, deckEnd + 100, PLATE_MS + 200);
 
   const done = Promise.all(
     animations.map(
@@ -706,7 +867,7 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
     )
     .then(() => finish());
 
-  timers.push(window.setTimeout(() => finish(), totalBudget + 120));
+  timers.push(window.setTimeout(() => finish(), totalBudget + 140));
 
   return {
     cancel: () => {

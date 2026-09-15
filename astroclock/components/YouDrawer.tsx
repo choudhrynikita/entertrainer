@@ -44,6 +44,13 @@ function useLivedSpan(birth: Date, active: boolean): LivedSpan {
   return span;
 }
 
+/** Titles already rendered as standalone InsightRows — skip matching section ids/titles. */
+const STANDALONE_SECTION_IDS = new Set(['summary', 'advice', 'themes', 'essence']);
+
+function normalizeTitle(t: string): string {
+  return t.trim().toLowerCase();
+}
+
 export function YouDrawer({
   open,
   birth,
@@ -99,6 +106,21 @@ export function YouDrawer({
   const displayName =
     profile?.name || (isDemo ? 'Demo' : birth.name || 'You');
 
+  /* Single accordion list: keep summary essay + advice + themes, drop
+     profile.sections that duplicate those titles (e.g. essence = "How you come across"). */
+  const insightSections = useMemo(() => {
+    if (!profile) return [];
+    const claimed = new Set<string>([
+      normalizeTitle('How you come across'),
+      normalizeTitle(profile.advice.title),
+      normalizeTitle('Dominant themes'),
+    ]);
+    return profile.sections.filter((sec) => {
+      if (STANDALONE_SECTION_IDS.has(sec.id)) return false;
+      return !claimed.has(normalizeTitle(sec.title));
+    });
+  }, [profile]);
+
   return (
     <>
       <div
@@ -143,8 +165,8 @@ export function YouDrawer({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 space-y-6 pb-10">
-          {/* Hero chronograph */}
+        {/* Pinned under header: Lived counter + climate day quote always visible */}
+        <div className="ac-you-sticky shrink-0 px-4 pt-4 pb-3 space-y-4 border-b border-white/8">
           <section className="ac-chrono" aria-label="Time lived since birth">
             <p className="text-[9px] uppercase tracking-[0.28em] text-mist/40 text-center mb-3">
               Lived
@@ -198,21 +220,22 @@ export function YouDrawer({
             )}
           </section>
 
-          {/* Day message */}
-          <section className="ac-day-msg rounded-xl px-4 py-4" aria-label="Day message">
+          <section className="ac-day-msg rounded-xl px-4 py-3.5" aria-label="Today">
             <p className="text-[9px] uppercase tracking-[0.25em] text-mist/40 mb-2">
-              How you might feel
+              Today
             </p>
             <p className="text-[14px] text-mist/90 leading-[1.65] font-medium">
               {dayMsg.text}
             </p>
-            <p className="text-[9px] text-mist/30 mt-2.5 font-mono uppercase tracking-wider">
+            <p className="text-[9px] text-mist/30 mt-2 font-mono uppercase tracking-wider">
               {dayMsg.climate}
               {dayMsg.stretch ? ` · ${dayMsg.stretch}` : ''}
             </p>
           </section>
+        </div>
 
-          {/* More insights — collapsed */}
+        {/* Insights only scroll — counter + quote stay pinned */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4 pb-10">
           <section className="space-y-2">
             <button
               type="button"
@@ -340,7 +363,7 @@ export function YouDrawer({
                       </ul>
                     </InsightRow>
 
-                    {profile.sections.map((sec) => (
+                    {insightSections.map((sec) => (
                       <InsightRow
                         key={sec.id}
                         id={sec.id}

@@ -329,10 +329,10 @@ html.astroclock-rem {
 
 
 
-/* In-place dual-face flip stage — seats stay put; stagger = delay only */
+/* 3D clock morph stage — plate rotateY, rings, deck rotateX */
 .astroclock-root .ac-piece-stage {
-  perspective: 1100px;
-  -webkit-perspective: 1100px;
+  perspective: 1400px;
+  -webkit-perspective: 1400px;
   transform-style: preserve-3d;
 }
 
@@ -373,11 +373,9 @@ html.astroclock-rem {
   touch-action: none;
 }
 
-.astroclock-root .ac-hud [data-ac-actor] {
+.astroclock-root .ac-hud [data-ac-deck-row] {
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
 }
 
 /* Settled bauhaus: no leftover geeky HUD (unmounted in React). Reduced-motion crossfade. */
@@ -398,17 +396,19 @@ html.astroclock-rem {
   }
 }
 
-.ac-inplace-overlay {
+.ac-clock-flip-overlay {
   /* no contain — flattens 3D / breaks backface-visibility */
 }
 
-.ac-inplace-tile {
+.ac-clock-rig,
+.ac-clock-plate,
+.ac-deck-flip {
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
 }
 
-/* Faces must NOT use preserve-3d — that prevents backface-visibility from hiding. */
-.ac-inplace-face {
+.ac-clock-face,
+.ac-deck-face {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform-style: flat;
@@ -427,7 +427,10 @@ html.astroclock-rem {
   overflow: hidden;
 }
 
-/* You drawer — chronograph life counter */
+/* You drawer — pinned lived + day quote; chronograph */
+.astroclock-root .ac-you-sticky {
+  background: linear-gradient(180deg, rgba(11, 12, 16, 0.98), rgba(11, 12, 16, 0.92));
+}
 .astroclock-root .ac-chrono-cell {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);

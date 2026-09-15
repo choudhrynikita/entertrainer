@@ -1,3 +1,7 @@
+import { fileURLToPath } from 'node:url'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
 export default defineNuxtConfig({
   devtools: { enabled: false },
   // @vueuse/motion is gone with the reveal composable it powered: every
@@ -194,7 +198,29 @@ export default defineNuxtConfig({
     '/games': { redirect: { to: '/engage', statusCode: 301 } },
     '/games/**': { redirect: { to: '/engage/**', statusCode: 301 } },
   },
-  nitro: {
+  alias: {
+    '@astroclock': fileURLToPath(new URL('./astroclock', import.meta.url)),
+  },
+  vite: {
+    plugins: [
+      // React island for /engage/astroclock (AstroClock UI + canvas).
+      react({ include: /\.(jsx|tsx)$/ }),
+      // Tailwind only processes files under astroclock/ via @source in CSS.
+      tailwindcss(),
+    ],
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react/jsx-runtime', 'lucide-react'],
+    },
+  },
+  // Ensure .tsx under astroclock compiles with the React JSX transform.
+  typescript: {
+    tsConfig: {
+      compilerOptions: {
+        jsx: 'react-jsx',
+      },
+    },
+  },
+    nitro: {
     preset: 'vercel',
     externals: {
       // Keep Playwright deps external in case the pw backup is ever re-enabled

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useSeoMeta({ title: 'Engage · Entertrainer', description: 'Short games and little detours — The Mind Reader, PicTune.', ogUrl: 'https://entertrainer.in/engage' })
+useSeoMeta({ title: 'Engage · Entertrainer', description: 'Short games and little detours — The Mind Reader, PicTune, and AstroClock.', ogUrl: 'https://entertrainer.in/engage' })
 
 const MIND_READER_SYMBOLS = [
   '<circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="7" r="2.2" fill="currentColor"/>',
@@ -42,6 +42,27 @@ const MIND_READER_SYMBOLS = [
           <span class="engage__card-text">
             <strong class="engage__card-name">The Mind Reader</strong>
             <span class="engage__card-blurb">Pick a number. Two small moves. One mark.</span>
+          </span>
+          <span class="engage__card-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8" /></svg>
+          </span>
+        </NuxtLink>
+      </li>
+      <li class="u-reveal">
+        <NuxtLink to="/engage/astroclock" class="engage__card engage__card--astroclock">
+          <span class="engage__icon engage__icon--astroclock" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+              <path d="M12 7.2v4.1l2.6 2.1" />
+              <path d="M7.4 5.8 6 4.4M16.6 5.8 18 4.4M5.8 16.6 4.4 18M18.2 16.6 19.6 18" />
+            </svg>
+          </span>
+          <span class="engage__card-text">
+            <strong class="engage__card-name">AstroClock</strong>
+            <span class="engage__card-blurb">Birth place and time. A live dial. What today is doing.</span>
           </span>
           <span class="engage__card-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"

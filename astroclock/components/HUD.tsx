@@ -33,7 +33,7 @@ export function HUD({
   onScrub,
 }: HUDProps) {
   return (
-    <footer className="shrink-0 border-t border-white/10 glass max-h-[42vh] overflow-y-auto">
+    <footer className="shrink-0 border-t border-white/10 ac-glass max-h-[42vh] overflow-y-auto">
       <div className="px-3 py-2 space-y-2">
         <div className="grid grid-cols-2 gap-2 text-[10px]">
           <div className="ac-chip rounded-lg px-2.5 py-2">

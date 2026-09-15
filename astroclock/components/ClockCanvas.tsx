@@ -152,7 +152,15 @@ export function ClockCanvas({
   useEffect(() => {
     resize();
     window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
+    const parent = canvasRef.current?.parentElement;
+    const ro = parent && typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => resize())
+      : null;
+    if (parent && ro) ro.observe(parent);
+    return () => {
+      window.removeEventListener('resize', resize);
+      ro?.disconnect();
+    };
   }, [resize]);
 
   useEffect(() => {

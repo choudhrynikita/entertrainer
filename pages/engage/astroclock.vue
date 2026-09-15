@@ -10,25 +10,41 @@ useSeoMeta({
   ogUrl: 'https://entertrainer.in/engage/astroclock',
 })
 
+const THEME_BG = { dark: '#0B0C10', light: '#F4F1EA' } as const
+
+function currentTheme(): 'dark' | 'light' {
+  if (!import.meta.client) return 'dark'
+  const t = document.documentElement.dataset.theme
+  return t === 'light' ? 'light' : 'dark'
+}
+
+function themeBg() {
+  return THEME_BG[currentTheme()]
+}
+
 /*
   Entertrainer's main.css uses `html { font-size: 1px }` (rem == px).
   Tailwind utilities on this island assume a normal 16px rem.
   useHead style for first paint + class-gated CSS + JS important safety net.
   NEVER bare `html { font-size }` in unscoped CSS — Vite keeps chunks linked.
+  Backgrounds follow html[data-theme] — do not force dark-only.
 */
 useHead({
   htmlAttrs: {
-    style: 'background:#0B0C10;height:100%;font-size:16px',
+    style: () => `background:${themeBg()};height:100%;font-size:16px`,
   },
   bodyAttrs: {
-    style: 'background:#0B0C10;margin:0;height:100%;overscroll-behavior:none',
+    style: () => `background:${themeBg()};margin:0;height:100%;overscroll-behavior:none`,
   },
   meta: [
-    { name: 'theme-color', content: '#0B0C10' },
+    { name: 'theme-color', content: () => themeBg() },
     { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
     { name: 'apple-mobile-web-app-capable', content: 'yes' },
     { name: 'mobile-web-app-capable', content: 'yes' },
-    { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+    {
+      name: 'apple-mobile-web-app-status-bar-style',
+      content: () => (currentTheme() === 'light' ? 'default' : 'black-translucent'),
+    },
   ],
   link: [
     { rel: 'icon', type: 'image/svg+xml', href: '/astroclock-icon.svg' },
@@ -46,6 +62,20 @@ let prevNuxtBg = ''
 let prevHtmlFontSize: string | null = null
 let prevHtmlFontSizePriority = ''
 let hadAstroclockRem = false
+let themeObs: MutationObserver | null = null
+
+function syncShellBg() {
+  const bg = themeBg()
+  const html = document.documentElement
+  const body = document.body
+  html.style.background = bg
+  body.style.background = bg
+  const nuxt = document.getElementById('__nuxt')
+  if (nuxt) nuxt.style.background = bg
+  if (host.value) host.value.style.background = bg
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) meta.setAttribute('content', bg)
+}
 
 onMounted(async () => {
   const html = document.documentElement
@@ -71,8 +101,11 @@ onMounted(async () => {
     prevNuxtBg = nuxt.style.background
     nuxt.style.height = '100%'
     nuxt.style.margin = '0'
-    nuxt.style.background = '#0b0c10'
   }
+
+  syncShellBg()
+  themeObs = new MutationObserver(() => syncShellBg())
+  themeObs.observe(html, { attributes: true, attributeFilter: ['data-theme'] })
 
   if (!host.value) return
   const [{ createRoot }, { createElement }, { AstroClockApp }] = await Promise.all([
@@ -85,6 +118,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  themeObs?.disconnect()
+  themeObs = null
   root?.unmount()
   root = null
 
@@ -123,5 +158,8 @@ onUnmounted(() => {
   margin: 0;
   background: #0b0c10;
   overflow: hidden;
+}
+:global(html[data-theme='light']) .astroclock-host {
+  background: #f4f1ea;
 }
 </style>

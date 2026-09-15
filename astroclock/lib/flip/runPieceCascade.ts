@@ -1,6 +1,6 @@
 /**
- * Segment cascade: HUD actors + sky dial tiles as 3D panels.
- * Trajectories keep faces readable (avoid full edge-on) with a wave stagger.
+ * In-place dual-face tile flip: each piece rotates ~180° around its own center.
+ * Parallax = staggered delay only — no scatter / fly-apart translation.
  */
 import {
   FLIP_STAGGER_MS,
@@ -8,7 +8,9 @@ import {
   type FlipDirection,
 } from './types';
 
-const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const EASE = 'cubic-bezier(0.37, 0, 0.63, 1)'; /* ease-in-out — readable mid-flip */
+const TILE_MS = 860;
+const Z_PULSE = 4; /* ≤8px optional depth pulse */
 
 export interface CascadeHandles {
   cancel: () => void;
@@ -33,9 +35,20 @@ function rectOf(el: Element): DOMRect {
   return el.getBoundingClientRect();
 }
 
+function snapshotCanvas(root: HTMLElement | null): string {
+  if (!root) return '';
+  const canvas = root.querySelector('canvas');
+  if (!canvas || canvas.width <= 0 || canvas.height <= 0) return '';
+  try {
+    return canvas.toDataURL('image/jpeg', 0.88);
+  } catch {
+    return '';
+  }
+}
+
 function makeOverlayRoot(stage: HTMLElement): HTMLElement {
   const root = document.createElement('div');
-  root.className = 'ac-cascade-overlay';
+  root.className = 'ac-cascade-overlay ac-inplace-overlay';
   root.setAttribute('aria-hidden', 'true');
   const sr = stage.getBoundingClientRect();
   Object.assign(root.style, {
@@ -44,8 +57,8 @@ function makeOverlayRoot(stage: HTMLElement): HTMLElement {
     top: `${sr.top}px`,
     width: `${sr.width}px`,
     height: `${sr.height}px`,
-    perspective: '1280px',
-    perspectiveOrigin: '50% 38%',
+    perspective: '1400px',
+    perspectiveOrigin: '50% 42%',
     pointerEvents: 'none',
     zIndex: '80',
     overflow: 'visible',
@@ -54,237 +67,433 @@ function makeOverlayRoot(stage: HTMLElement): HTMLElement {
   return root;
 }
 
-function cloneHudActor(
-  source: HTMLElement,
-  overlay: HTMLElement,
-  stageRect: DOMRect,
-): HTMLElement {
-  const r = rectOf(source);
-  const clone = source.cloneNode(true) as HTMLElement;
-  clone.removeAttribute('id');
-  clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
-  clone.setAttribute('aria-hidden', 'true');
-  clone.classList.add('ac-cascade-clone');
-  Object.assign(clone.style, {
+function faceStyles(extra: Record<string, string> = {}): Record<string, string> {
+  /* Do NOT set overflow:hidden here — it breaks backface-visibility in Chromium. */
+  return {
     position: 'absolute',
-    left: `${r.left - stageRect.left}px`,
-    top: `${r.top - stageRect.top}px`,
-    width: `${Math.max(r.width, 8)}px`,
-    height: `${Math.max(r.height, 8)}px`,
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    backfaceVisibility: 'hidden',
+    WebkitBackfaceVisibility: 'hidden',
+    borderRadius: 'inherit',
+    ...extra,
+  };
+}
+
+/** Dual-face tile locked to its home seat — rotateY only (+ tiny Z pulse). */
+function makeDualTile(opts: {
+  overlay: HTMLElement;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  frontBg: string;
+  backBg: string;
+  borderRadius?: string;
+  zIndex?: number;
+  className?: string;
+}): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = `ac-inplace-tile ${opts.className ?? ''}`.trim();
+  Object.assign(wrap.style, {
+    position: 'absolute',
+    left: `${opts.left}px`,
+    top: `${opts.top}px`,
+    width: `${Math.max(opts.width, 4)}px`,
+    height: `${Math.max(opts.height, 4)}px`,
     margin: '0',
     transformStyle: 'preserve-3d',
-    backfaceVisibility: 'hidden',
-    willChange: 'transform, opacity, filter',
+    WebkitTransformStyle: 'preserve-3d',
     transformOrigin: '50% 50%',
-    zIndex: '3',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,55,0.2)',
+    willChange: 'transform',
+    zIndex: String(opts.zIndex ?? 2),
+    borderRadius: opts.borderRadius ?? '3px',
   });
-  overlay.appendChild(clone);
-  return clone;
+
+  const front = document.createElement('div');
+  front.className = 'ac-inplace-face ac-inplace-front';
+  Object.assign(front.style, faceStyles({
+    transform: 'rotateY(0deg) translateZ(1px)',
+    boxShadow: 'inset 0 0 0 1px rgba(212,175,55,0.22)',
+  }));
+  applyBg(front, opts.frontBg);
+
+  const back = document.createElement('div');
+  back.className = 'ac-inplace-face ac-inplace-back';
+  Object.assign(back.style, faceStyles({
+    transform: 'rotateY(180deg) translateZ(1px)',
+    boxShadow: 'inset 0 0 0 1px rgba(212,175,55,0.18)',
+  }));
+  applyBg(back, opts.backBg);
+
+  wrap.appendChild(front);
+  wrap.appendChild(back);
+  /* Default: front visible, back hidden until flip (to-sky overrides via WAAPI fill:both). */
+  back.style.opacity = '0';
+  opts.overlay.appendChild(wrap);
+  return wrap;
 }
 
-function spawnSkyTiles(
-  canvas: HTMLCanvasElement | null,
-  skyLayer: HTMLElement,
-  overlay: HTMLElement,
-  stageRect: DOMRect,
+function cropBg(
+  url: string,
+  fullW: number,
+  fullH: number,
+  col: number,
+  row: number,
   cols: number,
   rows: number,
-): HTMLElement[] {
-  const skyRect = rectOf(skyLayer);
-  const tiles: HTMLElement[] = [];
-  let url = '';
-  try {
-    if (canvas && canvas.width > 0 && canvas.height > 0) {
-      url = canvas.toDataURL('image/jpeg', 0.82);
-    }
-  } catch {
-    url = '';
-  }
-
-  const tw = skyRect.width / cols;
-  const th = skyRect.height / rows;
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const tile = document.createElement('div');
-      tile.className = 'ac-cascade-sky-tile ac-cascade-clone';
-      const left = skyRect.left - stageRect.left + col * tw;
-      const top = skyRect.top - stageRect.top + row * th;
-      Object.assign(tile.style, {
-        position: 'absolute',
-        left: `${left}px`,
-        top: `${top}px`,
-        width: `${tw + 0.8}px`,
-        height: `${th + 0.8}px`,
-        transformStyle: 'preserve-3d',
-        backfaceVisibility: 'hidden',
-        willChange: 'transform, opacity, filter',
-        transformOrigin: '50% 50%',
-        borderRadius: '4px',
-        boxShadow:
-          'inset 0 0 0 1px rgba(212,175,55,0.28), 0 4px 14px rgba(0,0,0,0.4)',
-        backgroundColor: '#161822',
-        zIndex: '1',
-        overflow: 'hidden',
-      });
-      if (url) {
-        tile.style.backgroundImage = `url(${url})`;
-        tile.style.backgroundSize = `${skyRect.width}px ${skyRect.height}px`;
-        tile.style.backgroundPosition = `-${col * tw}px -${row * th}px`;
-      } else {
-        const g = 20 + ((row * cols + col) % 6) * 5;
-        tile.style.background = `linear-gradient(145deg, rgb(${g + 10},${g + 8},${g}), #0B0C10)`;
-      }
-      overlay.appendChild(tile);
-      tiles.push(tile);
-    }
-  }
-  return tiles;
+  fallback: string,
+  cssVar?: '--ac-sky-shot' | '--ac-bau-shot',
+): string {
+  if (!url || fullW <= 0 || fullH <= 0) return fallback;
+  const tw = fullW / cols;
+  const th = fullH / rows;
+  return JSON.stringify({
+    image: cssVar ? `var(${cssVar})` : `url(${url})`,
+    position: `${-col * tw}px ${-row * th}px`,
+    size: `${fullW}px ${fullH}px`,
+    repeat: 'no-repeat',
+  });
 }
 
-/** Synthetic rim wedges — metal panels peeling off the dial ring. */
-function spawnRimWedges(
-  skyLayer: HTMLElement,
-  overlay: HTMLElement,
-  stageRect: DOMRect,
-  count: number,
-): HTMLElement[] {
-  const skyRect = rectOf(skyLayer);
-  const cx = skyRect.left - stageRect.left + skyRect.width / 2;
-  const cy = skyRect.top - stageRect.top + skyRect.height / 2;
-  const R = Math.min(skyRect.width, skyRect.height) * 0.42;
-  const wedges: HTMLElement[] = [];
+function applyBg(el: HTMLElement, spec: string) {
+  if (spec.startsWith('{')) {
+    try {
+      const o = JSON.parse(spec) as {
+        image: string;
+        position: string;
+        size: string;
+        repeat: string;
+      };
+      el.style.backgroundImage = o.image;
+      el.style.backgroundPosition = o.position;
+      el.style.backgroundSize = o.size;
+      el.style.backgroundRepeat = o.repeat;
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+  el.style.background = spec;
+}
+
+function spawnDialGrid(opts: {
+  overlay: HTMLElement;
+  stageRect: DOMRect;
+  dialEl: HTMLElement;
+  skyUrl: string;
+  bauUrl: string;
+  cols: number;
+  rows: number;
+}): { tiles: HTMLElement[]; delays: number[] } {
+  const { overlay, stageRect, dialEl, skyUrl, bauUrl, cols, rows } = opts;
+  const dr = rectOf(dialEl);
+  const tiles: HTMLElement[] = [];
+  const delays: number[] = [];
+  const tw = dr.width / cols;
+  const th = dr.height / rows;
+  const cx = cols / 2 - 0.5;
+  const cy = rows / 2 - 0.5;
+
+  type Cell = { col: number; row: number; ring: number };
+  const cells: Cell[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const ring = Math.max(Math.abs(col - cx), Math.abs(row - cy));
+      cells.push({ col, row, ring });
+    }
+  }
+  /* Outer ring leads (Transformers peel), inner trails. */
+  cells.sort((a, b) => a.ring - b.ring || a.row - b.row || a.col - b.col);
+
+  const maxRing = cells.reduce((m, c) => Math.max(m, c.ring), 0) || 1;
+
+  cells.forEach((cell, i) => {
+    const { col, row, ring } = cell;
+    const left = dr.left - stageRect.left + col * tw;
+    const top = dr.top - stageRect.top + row * th;
+    const g = 18 + ((row * cols + col) % 5) * 4;
+    const skyFallback = `linear-gradient(145deg, rgb(${g + 12},${g + 10},${g + 28}), #0B0C10)`;
+    const bauFallback = `linear-gradient(160deg, #1a1c28, #12141c ${40 + (i % 4) * 8}%, #161822)`;
+
+    const tile = makeDualTile({
+      overlay,
+      left,
+      top,
+      width: tw + 0.6,
+      height: th + 0.6,
+      frontBg: cropBg(skyUrl, dr.width, dr.height, col, row, cols, rows, skyFallback, '--ac-sky-shot'),
+      backBg: cropBg(bauUrl, dr.width, dr.height, col, row, cols, rows, bauFallback, '--ac-bau-shot'),
+      borderRadius: '2px',
+      zIndex: 2,
+      className: 'ac-inplace-dial',
+    });
+    tiles.push(tile);
+    /* Ring-index stagger ~55–70ms */
+    delays.push(Math.round((ring / maxRing) * (FLIP_STAGGER_MS * (cols + rows) * 0.55) + (i % 3) * 8));
+  });
+
+  return { tiles, delays };
+}
+
+/** Rim arc tiles — front = sky rim crop, back = ribbon-colored wedge. */
+function spawnRimTiles(opts: {
+  overlay: HTMLElement;
+  stageRect: DOMRect;
+  dialEl: HTMLElement;
+  skyUrl: string;
+  count: number;
+}): { tiles: HTMLElement[]; delays: number[] } {
+  const { overlay, stageRect, dialEl, skyUrl, count } = opts;
+  const dr = rectOf(dialEl);
+  const cx = dr.left - stageRect.left + dr.width / 2;
+  const cy = dr.top - stageRect.top + dr.height / 2;
+  const R = Math.min(dr.width, dr.height) * 0.48;
+  const ribbon = ['#81C784', '#D4AF37', '#E57373', '#81C784', '#D4AF37', '#E57373', '#81C784', '#D4AF37', '#E57373', '#D4AF37'];
+  const tiles: HTMLElement[] = [];
+  const delays: number[] = [];
+
   for (let i = 0; i < count; i++) {
     const a0 = -Math.PI / 2 + (i / count) * Math.PI * 2;
     const a1 = -Math.PI / 2 + ((i + 1) / count) * Math.PI * 2;
     const am = (a0 + a1) / 2;
-    const w = document.createElement('div');
-    w.className = 'ac-cascade-rim ac-cascade-clone';
-    const size = R * 0.55;
-    Object.assign(w.style, {
-      position: 'absolute',
-      left: `${cx + Math.cos(am) * R * 0.82 - size / 2}px`,
-      top: `${cy + Math.sin(am) * R * 0.82 - size / 2}px`,
-      width: `${size}px`,
-      height: `${size * 0.42}px`,
-      borderRadius: '3px',
-      background:
-        'linear-gradient(90deg, rgba(212,175,55,0.35), rgba(22,24,34,0.92), rgba(212,175,55,0.2))',
-      boxShadow:
-        'inset 0 0 0 1px rgba(212,175,55,0.45), 0 2px 10px rgba(0,0,0,0.5)',
-      transform: `rotate(${(am * 180) / Math.PI + 90}deg)`,
-      transformStyle: 'preserve-3d',
-      backfaceVisibility: 'hidden',
-      willChange: 'transform, opacity, filter',
-      zIndex: '2',
+    const sizeW = R * 0.42;
+    const sizeH = R * 0.28;
+    const left = cx + Math.cos(am) * R * 0.92 - sizeW / 2;
+    const top = cy + Math.sin(am) * R * 0.92 - sizeH / 2;
+
+    const skyFallback = 'linear-gradient(90deg, rgba(212,175,55,0.3), #161822)';
+    let frontBg = skyFallback;
+    if (skyUrl) {
+      /* Approximate rim crop from dial snapshot */
+      const fx = (Math.cos(am) * 0.42 + 0.5) * dr.width;
+      const fy = (Math.sin(am) * 0.42 + 0.5) * dr.height;
+      frontBg = `url(${skyUrl}) ${-(fx - sizeW / 2)}px ${-(fy - sizeH / 2)}px / ${dr.width}px ${dr.height}px no-repeat`;
+    }
+    const backBg = `linear-gradient(90deg, ${ribbon[i % ribbon.length]}cc, ${ribbon[i % ribbon.length]}66)`;
+
+    const tile = makeDualTile({
+      overlay,
+      left,
+      top,
+      width: sizeW,
+      height: sizeH,
+      frontBg,
+      backBg,
+      borderRadius: '4px',
+      zIndex: 3,
+      className: 'ac-inplace-rim',
     });
-    overlay.appendChild(w);
-    wedges.push(w);
+
+    tiles.push(tile);
+    delays.push(i * Math.round(FLIP_STAGGER_MS * 0.5));
   }
-  return wedges;
+  return { tiles, delays };
 }
 
-function targetPoint(
-  stageRect: DOMRect,
-  index: number,
-  total: number,
-  kind: 'hud' | 'sky' | 'rim',
-): { x: number; y: number; rotY: number; rotX: number; z: number; scale: number } {
-  const cx = stageRect.width * 0.5;
-  const cy = stageRect.height * 0.34;
-  const t = total <= 1 ? 0 : index / (total - 1);
-  if (kind === 'rim') {
-    const angle = -Math.PI / 2 + t * Math.PI * 2;
-    const r = Math.min(stageRect.width, stageRect.height) * 0.28;
-    return {
-      x: cx + Math.cos(angle) * r,
-      y: cy + Math.sin(angle) * r,
-      rotY: index % 2 === 0 ? 62 : -62,
-      rotX: 28,
-      z: 40,
-      scale: 0.55,
-    };
+function hudBackBackground(piece: string | undefined, order: number): string {
+  const GOLD = '#D4AF37';
+  const FACE = '#161822';
+  if (piece === 'maha' || order === 0) {
+    return `linear-gradient(180deg, ${FACE}, #12141c), linear-gradient(90deg, transparent 20%, ${GOLD}33 50%, transparent 80%)`;
   }
-  if (kind === 'sky') {
-    const angle = -Math.PI / 2 + t * Math.PI * 2 * 0.85;
-    const r = Math.min(stageRect.width, stageRect.height) * (0.12 + (index % 3) * 0.05);
-    return {
-      x: cx + Math.cos(angle) * r,
-      y: cy + Math.sin(angle) * r * 0.9,
-      rotY: index % 2 === 0 ? 58 : -58,
-      rotX: 32 + (index % 3) * 6,
-      z: 20 - (index % 4) * 8,
-      scale: 0.38 + (index % 3) * 0.04,
-    };
+  if (piece === 'tithi' || order === 1) {
+    return `linear-gradient(180deg, ${FACE}, #12141c)`;
   }
-  const slot = index % 12;
-  const angle = -Math.PI / 2 + (slot / 12) * Math.PI * 2;
-  const r = Math.min(stageRect.width, stageRect.height) * (0.06 + (index < 2 ? 0.04 : 0.18));
-  return {
-    x: cx + Math.cos(angle) * r,
-    y: cy + Math.sin(angle) * r * 0.88,
-    rotY: index % 2 === 0 ? 48 : -48,
-    rotX: 36,
-    z: 30 - index * 3,
-    scale: index < 2 ? 0.48 : index < 9 ? 0.28 : 0.4,
-  };
+  if (piece?.startsWith('graha') || (order >= 2 && order <= 8)) {
+    const colors = ['#81C784', '#D4AF37', '#E57373'];
+    const c = colors[order % 3];
+    return `linear-gradient(135deg, ${c}55, ${FACE})`;
+  }
+  if (piece === 'harmonic' || order === 9) {
+    return `linear-gradient(180deg, #12141c, ${FACE})`;
+  }
+  if (piece === 'live' || order === 10) {
+    return `linear-gradient(180deg, ${FACE}, #0B0C10)`;
+  }
+  /* scrub → sky dial strip */
+  return `linear-gradient(180deg, ${FACE} 0%, #12141c 100%)`;
 }
 
-function animateClone(
-  clone: HTMLElement,
-  from: { left: number; top: number; w: number; h: number },
-  to: ReturnType<typeof targetPoint>,
+function spawnHudTiles(opts: {
+  overlay: HTMLElement;
+  stageRect: DOMRect;
+  hudRoot: HTMLElement;
+  pageRect: DOMRect;
+}): { tiles: HTMLElement[]; delays: number[] } {
+  const actors = Array.from(
+    opts.hudRoot.querySelectorAll<HTMLElement>('[data-ac-actor]'),
+  );
+  const tiles: HTMLElement[] = [];
+  const delays: number[] = [];
+
+  /* Overlay is stage-sized; HUD sits below stage — extend overlay via fixed page coords. */
+  actors.forEach((el, i) => {
+    const order = Number(el.dataset.acOrder ?? i);
+    const r = rectOf(el);
+    const left = r.left - opts.stageRect.left;
+    const top = r.top - opts.stageRect.top;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ac-inplace-tile ac-inplace-hud';
+    Object.assign(wrap.style, {
+      position: 'absolute',
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${Math.max(r.width, 8)}px`,
+      height: `${Math.max(r.height, 8)}px`,
+      transformStyle: 'preserve-3d',
+      WebkitTransformStyle: 'preserve-3d',
+      transformOrigin: '50% 50%',
+      willChange: 'transform, opacity',
+      zIndex: '5',
+      borderRadius: getComputedStyle(el).borderRadius || '8px',
+    });
+
+    const front = document.createElement('div');
+    front.className = 'ac-inplace-face ac-inplace-front';
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+    clone.style.width = '100%';
+    clone.style.height = '100%';
+    clone.style.margin = '0';
+    clone.style.pointerEvents = 'none';
+    Object.assign(front.style, faceStyles({
+      transform: 'rotateY(0deg) translateZ(1px)',
+      background: 'rgba(18,20,28,0.95)',
+      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+    }));
+    front.appendChild(clone);
+
+    const back = document.createElement('div');
+    back.className = 'ac-inplace-face ac-inplace-back';
+    const piece = el.dataset.piece;
+    Object.assign(back.style, faceStyles({
+      transform: 'rotateY(180deg) translateZ(1px)',
+      background: hudBackBackground(piece, order),
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+    }));
+    const label = document.createElement('div');
+    label.style.cssText =
+      'font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(224,226,236,0.55);text-align:center;padding:4px';
+    if (piece === 'maha' || order === 0) label.textContent = 'Today';
+    else if (piece === 'tithi' || order === 1) label.textContent = 'Stretches';
+    else if (piece === 'harmonic' || order === 9) label.textContent = 'Good · Mid · Hard';
+    else if (piece === 'live' || order === 10) label.textContent = 'Sky';
+    else if (piece === 'scrub' || order === 11) label.textContent = 'Sky dial';
+    else label.textContent = '';
+    back.appendChild(label);
+
+    wrap.appendChild(front);
+    wrap.appendChild(back);
+    back.style.opacity = '0';
+    opts.overlay.appendChild(wrap);
+    tiles.push(wrap);
+    delays.push(90 + order * FLIP_STAGGER_MS);
+  });
+
+  void opts.pageRect;
+  return { tiles, delays };
+}
+
+function animateInPlace(
+  tile: HTMLElement,
   delay: number,
   direction: FlipDirection,
   duration: number,
-  baseRotate = 0,
+  bucket: Animation[],
+  baseRotZ = 0,
 ): Animation {
-  const dx = to.x - from.left - from.w / 2;
-  const dy = to.y - from.top - from.h / 2;
-  const midX = dx * 0.4;
-  const midY = dy * 0.35 - 36;
-  const sign = dx >= 0 ? 1 : -1;
+  const zPrefix = baseRotZ ? `rotateZ(${baseRotZ}deg) ` : '';
+  const startY = direction === 'to-bauhaus' ? 0 : 180;
+  const endY = direction === 'to-bauhaus' ? 180 : 360;
+  const midY = (startY + endY) / 2;
 
-  const atRest = {
-    transform: `translate3d(0px,0px,0px) rotateZ(${baseRotate}deg) rotateX(0deg) rotateY(0deg) scale(1)`,
-    opacity: '1',
-    filter: 'brightness(1) blur(0px)',
-  };
-  /* Stay readable — never hit ~90° edge-on while still opaque. */
-  const mid = {
-    transform: `translate3d(${midX}px, ${midY}px, 110px) rotateZ(${baseRotate}deg) rotateX(22deg) rotateY(${sign * 48}deg) scale(0.82)`,
-    opacity: '1',
-    filter: 'brightness(1.55) blur(0.35px)',
-    offset: 0.38,
-  };
-  const atClock = {
-    transform: `translate3d(${dx}px, ${dy}px, ${to.z}px) rotateZ(${baseRotate}deg) rotateX(${to.rotX}deg) rotateY(${to.rotY}deg) scale(${to.scale})`,
-    opacity: '0',
-    filter: 'brightness(1.25) blur(0.8px)',
-  };
+  const front = tile.querySelector('.ac-inplace-front') as HTMLElement | null;
+  const back = tile.querySelector('.ac-inplace-back') as HTMLElement | null;
 
-  const keyframes =
-    direction === 'to-bauhaus'
-      ? [atRest, mid, atClock]
-      : [atClock, { ...mid, offset: 0.4 }, atRest];
+  /* Opacity crossfade at the edge-on moment — avoids mirrored front bleed
+     when backface-visibility flakes under WAAPI compositing. */
+  if (front && back) {
+    /* Hard swap at the meridian — never leave both faces transparent
+       (that read as empty gold wireframes / fake scatter). */
+    const frontOut =
+      direction === 'to-bauhaus'
+        ? [
+            { opacity: '1', offset: 0 },
+            { opacity: '1', offset: 0.49 },
+            { opacity: '0', offset: 0.5 },
+            { opacity: '0', offset: 1 },
+          ]
+        : [
+            { opacity: '0', offset: 0 },
+            { opacity: '0', offset: 0.49 },
+            { opacity: '1', offset: 0.5 },
+            { opacity: '1', offset: 1 },
+          ];
+    const backIn =
+      direction === 'to-bauhaus'
+        ? [
+            { opacity: '0', offset: 0 },
+            { opacity: '0', offset: 0.49 },
+            { opacity: '1', offset: 0.5 },
+            { opacity: '1', offset: 1 },
+          ]
+        : [
+            { opacity: '1', offset: 0 },
+            { opacity: '1', offset: 0.49 },
+            { opacity: '0', offset: 0.5 },
+            { opacity: '0', offset: 1 },
+          ];
+    bucket.push(front.animate(frontOut, { duration, delay, easing: 'linear', fill: 'both' }));
+    bucket.push(back.animate(backIn, { duration, delay, easing: 'linear', fill: 'both' }));
+  }
 
-  return clone.animate(keyframes, {
+  const keyframes = [
+    {
+      transform: `${zPrefix}translateZ(0px) rotateY(${startY}deg)`,
+      filter: 'brightness(1)',
+      offset: 0,
+    },
+    {
+      transform: `${zPrefix}translateZ(${Z_PULSE}px) rotateY(${midY}deg)`,
+      filter: 'brightness(1.35)',
+      offset: 0.5,
+    },
+    {
+      transform: `${zPrefix}translateZ(0px) rotateY(${endY}deg)`,
+      filter: 'brightness(1)',
+      offset: 1,
+    },
+  ];
+
+  return tile.animate(keyframes, {
     duration,
     delay,
     easing: EASE,
-    /* both: hold first keyframe during stagger delay (critical for reverse) */
     fill: 'both',
   });
 }
 
-function measureLocal(el: HTMLElement, stageRect: DOMRect) {
-  const r = el.getBoundingClientRect();
-  return {
-    left: r.left - stageRect.left,
-    top: r.top - stageRect.top,
-    w: r.width,
-    h: r.height,
-  };
+function dialSnapshotTarget(
+  skyLayer: HTMLElement | null,
+  bauhausLayer: HTMLElement | null,
+): HTMLElement | null {
+  const bauInner =
+    bauhausLayer?.querySelector('.ac-dial-square-inner') as HTMLElement | null;
+  if (bauInner) return bauInner;
+  const skyInner =
+    skyLayer?.querySelector('.ac-dial-square-inner') as HTMLElement | null;
+  if (skyInner) return skyInner;
+  const canvas =
+    (skyLayer?.querySelector('canvas') as HTMLElement | null) ||
+    (bauhausLayer?.querySelector('canvas') as HTMLElement | null);
+  return canvas?.parentElement ?? skyLayer ?? bauhausLayer;
 }
 
 export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
@@ -307,9 +516,12 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
     }
     if (bauhausLayer) {
       bauhausLayer.style.opacity = '';
-      bauhausLayer.style.transform = '';
+      bauhausLayer.style.visibility = '';
       bauhausLayer.style.filter = '';
-      bauhausLayer.style.transformOrigin = '';
+    }
+    if (skyLayer) {
+      skyLayer.style.opacity = '';
+      skyLayer.style.visibility = '';
     }
     onComplete?.();
   };
@@ -329,62 +541,80 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
   const stageRect = rectOf(stage);
   overlay = makeOverlayRoot(stage);
 
-  const hudActors = hudRoot
-    ? Array.from(hudRoot.querySelectorAll<HTMLElement>('[data-ac-actor]'))
-    : [];
+  /* Extend overlay downward to cover HUD clones that sit below the stage. */
+  if (hudRoot) {
+    const hr = rectOf(hudRoot);
+    const bottom = hr.bottom - stageRect.top;
+    if (bottom > stageRect.height) {
+      overlay.style.height = `${bottom + 8}px`;
+    }
+  }
 
-  const canvas = skyLayer?.querySelector('canvas') as HTMLCanvasElement | null;
-  const skyTiles =
-    skyLayer != null
-      ? spawnSkyTiles(canvas, skyLayer, overlay, stageRect, 5, 4)
-      : [];
-  const rimWedges =
-    skyLayer != null ? spawnRimWedges(skyLayer, overlay, stageRect, 10) : [];
+  const skyUrl = snapshotCanvas(skyLayer);
+  const bauUrl = snapshotCanvas(bauhausLayer);
+  const dialEl = dialSnapshotTarget(skyLayer, bauhausLayer);
+  if (skyUrl) overlay.style.setProperty('--ac-sky-shot', `url(${skyUrl})`);
+  if (bauUrl) overlay.style.setProperty('--ac-bau-shot', `url(${bauUrl})`);
 
-  const cx = stageRect.width / 2;
-  const cy = stageRect.height * 0.34;
-  const ranked = skyTiles
-    .map((tile) => {
-      const r = tile.getBoundingClientRect();
-      const tx = r.left - stageRect.left + r.width / 2;
-      const ty = r.top - stageRect.top + r.height / 2;
-      return { tile, dist: Math.hypot(tx - cx, ty - cy) };
-    })
-    .sort((a, b) => b.dist - a.dist);
+  const dialPack =
+    dialEl != null
+      ? spawnDialGrid({
+          overlay,
+          stageRect,
+          dialEl,
+          skyUrl,
+          bauUrl,
+          cols: 4,
+          rows: 4,
+        })
+      : { tiles: [] as HTMLElement[], delays: [] as number[] };
 
+  const rimPack =
+    dialEl != null
+      ? spawnRimTiles({
+          overlay,
+          stageRect,
+          dialEl,
+          skyUrl,
+          count: 10,
+        })
+      : { tiles: [] as HTMLElement[], delays: [] as number[] };
+
+  const hudPack = hudRoot
+    ? spawnHudTiles({
+        overlay,
+        stageRect,
+        hudRoot,
+        pageRect: stageRect,
+      })
+    : { tiles: [] as HTMLElement[], delays: [] as number[] };
+
+  /* Hide live layers — tiles carry the mosaic. */
   if (skyLayer) {
     skyLayer.style.visibility = 'hidden';
     hidden.push(skyLayer);
   }
+  if (hudRoot) {
+    hudRoot.style.visibility = 'hidden';
+    hudRoot.style.pointerEvents = 'none';
+    hidden.push(hudRoot);
+  }
 
+  /* Bauhaus sits under tiles without whole-layer rotateY (that squashed the circle). */
   if (bauhausLayer) {
-    bauhausLayer.style.transformOrigin = '50% 38%';
     if (direction === 'to-bauhaus') {
+      bauhausLayer.style.visibility = 'visible';
       animations.push(
         bauhausLayer.animate(
           [
-            {
-              opacity: 0,
-              transform: 'scale(0.62) rotateY(-36deg) translateZ(-70px)',
-              filter: 'brightness(1.65)',
-            },
-            {
-              opacity: 0.35,
-              transform: 'scale(0.82) rotateY(-12deg) translateZ(-20px)',
-              filter: 'brightness(1.3)',
-              offset: 0.45,
-            },
-            {
-              opacity: 1,
-              transform: 'scale(1) rotateY(0deg) translateZ(0px)',
-              filter: 'brightness(1)',
-            },
+            { opacity: 0, filter: 'brightness(1.2)' },
+            { opacity: 1, filter: 'brightness(1)', offset: 1 },
           ],
           {
-            duration: FLIP_TOTAL_MS * 0.78,
-            delay: FLIP_TOTAL_MS * 0.22,
+            duration: TILE_MS,
+            delay: Math.round(FLIP_TOTAL_MS * 0.35),
             easing: EASE,
-            fill: 'forwards',
+            fill: 'both',
           },
         ),
       );
@@ -392,83 +622,52 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
       animations.push(
         bauhausLayer.animate(
           [
-            {
-              opacity: 1,
-              transform: 'scale(1) rotateY(0deg)',
-              filter: 'brightness(1)',
-            },
-            {
-              opacity: 0,
-              transform: 'scale(0.7) rotateY(38deg) translateZ(-50px)',
-              filter: 'brightness(1.45)',
-            },
+            { opacity: 1, filter: 'brightness(1)' },
+            { opacity: 0, filter: 'brightness(1.15)' },
           ],
           {
-            duration: FLIP_TOTAL_MS * 0.5,
-            delay: 0,
+            duration: Math.round(TILE_MS * 0.7),
+            delay: 40,
             easing: EASE,
-            fill: 'forwards',
+            fill: 'both',
           },
         ),
       );
     }
   }
 
-  /* Rim leads the wave (outer metal). */
-  rimWedges.forEach((el, i) => {
-    const from = measureLocal(el, stageRect);
-    const to = targetPoint(stageRect, i, rimWedges.length, 'rim');
-    const delay =
-      direction === 'to-bauhaus'
-        ? i * (FLIP_STAGGER_MS * 0.55)
-        : (rimWedges.length - 1 - i) * (FLIP_STAGGER_MS * 0.55) + 60;
-    /* extract rotate deg from inline if present */
-    const m = /rotate\((-?[\d.]+)deg\)/.exec(el.style.transform);
-    const base = m ? Number(m[1]) : 0;
-    animations.push(
-      animateClone(el, from, to, delay, direction, FLIP_TOTAL_MS * 0.72, base),
-    );
-  });
+  const play = (
+    tiles: HTMLElement[],
+    delays: number[],
+    reverseDelays: boolean,
+  ) => {
+    const n = tiles.length;
+    tiles.forEach((tile, i) => {
+      const d = reverseDelays
+        ? (delays[n - 1 - i] ?? (n - 1 - i) * FLIP_STAGGER_MS)
+        : (delays[i] ?? i * FLIP_STAGGER_MS);
+      const base =
+        (tile as HTMLElement & { __baseRot?: number }).__baseRot ?? 0;
+      animations.push(animateInPlace(tile, d, direction, TILE_MS, animations, base));
+    });
+  };
 
-  ranked.forEach((item, rank) => {
-    const from = measureLocal(item.tile, stageRect);
-    const to = targetPoint(stageRect, rank, ranked.length, 'sky');
-    const delay =
-      direction === 'to-bauhaus'
-        ? 80 + rank * (FLIP_STAGGER_MS * 0.58)
-        : (ranked.length - 1 - rank) * (FLIP_STAGGER_MS * 0.58) + 100;
-    animations.push(
-      animateClone(item.tile, from, to, delay, direction, FLIP_TOTAL_MS * 0.74),
-    );
-  });
-
-  hudActors.forEach((el, i) => {
-    const order = Number(el.dataset.acOrder ?? i);
-    const clone = cloneHudActor(el, overlay!, stageRect);
-    const from = measureLocal(el, stageRect);
-    const to = targetPoint(stageRect, order, Math.max(hudActors.length, 12), 'hud');
-    const delay =
-      direction === 'to-bauhaus'
-        ? 120 + order * FLIP_STAGGER_MS
-        : (hudActors.length - 1 - order) * FLIP_STAGGER_MS + 160;
-    animations.push(
-      animateClone(clone, from, to, delay, direction, FLIP_TOTAL_MS * 0.8),
-    );
-  });
-
-  /* Hide HUD chrome after clones are measured/positioned. */
-  if (hudRoot) {
-    hudRoot.style.visibility = 'hidden';
-    hudRoot.style.pointerEvents = 'none';
-    hidden.push(hudRoot);
-  }
+  const reverse = direction === 'to-sky';
+  /* Rim leads outward peel; dial wave; HUD trails. */
+  play(rimPack.tiles, rimPack.delays, reverse);
+  play(dialPack.tiles, dialPack.delays, reverse);
+  play(
+    hudPack.tiles,
+    hudPack.delays,
+    reverse,
+  );
 
   if (direction === 'to-sky' && skyLayer) {
     timers.push(
       window.setTimeout(() => {
         if (cancelled) return;
         skyLayer.style.visibility = '';
-      }, FLIP_TOTAL_MS * 0.68),
+      }, Math.round(FLIP_TOTAL_MS * 0.72)),
     );
   }
   if (direction === 'to-sky' && hudRoot) {
@@ -477,9 +676,17 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
         if (cancelled) return;
         hudRoot.style.visibility = '';
         hudRoot.style.pointerEvents = '';
-      }, FLIP_TOTAL_MS * 0.75),
+      }, Math.round(FLIP_TOTAL_MS * 0.78)),
     );
   }
+
+  const maxDelay = Math.max(
+    0,
+    ...rimPack.delays,
+    ...dialPack.delays,
+    ...hudPack.delays,
+  );
+  const totalBudget = Math.max(FLIP_TOTAL_MS, maxDelay + TILE_MS + 80);
 
   const done = Promise.all(
     animations.map(
@@ -499,7 +706,7 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
     )
     .then(() => finish());
 
-  timers.push(window.setTimeout(() => finish(), FLIP_TOTAL_MS + 260));
+  timers.push(window.setTimeout(() => finish(), totalBudget + 120));
 
   return {
     cancel: () => {
@@ -514,9 +721,12 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
       }
       if (bauhausLayer) {
         bauhausLayer.style.opacity = '';
-        bauhausLayer.style.transform = '';
+        bauhausLayer.style.visibility = '';
         bauhausLayer.style.filter = '';
-        bauhausLayer.style.transformOrigin = '';
+      }
+      if (skyLayer) {
+        skyLayer.style.opacity = '';
+        skyLayer.style.visibility = '';
       }
     },
     done: done.then(() => undefined),

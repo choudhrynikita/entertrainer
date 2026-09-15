@@ -142,7 +142,7 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
       const msFrac = date.getMilliseconds() / 1000;
 
       const cx = w / 2;
-      const cy = h / 2 - Math.min(w, h) * 0.02;
+      const cy = h / 2;
       const R = Math.min(w, h) * 0.42;
 
       ctx.clearRect(0, 0, w, h);
@@ -279,17 +279,24 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
   }, []);
 
   return (
-    <div className="absolute inset-0 flex flex-col">
-      <canvas
-        ref={canvasRef}
-        className="touch-none block w-full flex-1 min-h-0"
-        aria-label="Day clock face"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          onFlipBack();
-        }}
-      />
-      <div className="shrink-0 px-3 pb-2 pt-1 text-center pointer-events-none">
+    <div className="absolute inset-0 min-h-0">
+      <div className="ac-dial-square absolute inset-0 w-full h-full">
+        <div className="ac-dial-square-inner">
+          <canvas
+            ref={canvasRef}
+            className="touch-none block"
+            aria-label="Day clock face"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              onFlipBack();
+            }}
+          />
+        </div>
+      </div>
+      <div
+        className="ac-bauhaus-chrome absolute bottom-0 left-0 right-0 px-3 pb-2 pt-1 text-center pointer-events-none z-[1]"
+        data-ac-bauhaus-chrome
+      >
         <div className="text-[11px] text-mist/70 tracking-wide">{dayLabel}</div>
         <div className="text-[9px] text-mist/45 mt-0.5 uppercase tracking-wider">
           Good · Mid · Hard stretches of the day.

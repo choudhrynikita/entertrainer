@@ -329,10 +329,10 @@ html.astroclock-rem {
 
 
 
-/* Piece-cascade flip stage (HUD + sky tiles → Bauhaus) */
+/* In-place dual-face flip stage — seats stay put; stagger = delay only */
 .astroclock-root .ac-piece-stage {
-  perspective: 1200px;
-  -webkit-perspective: 1200px;
+  perspective: 1100px;
+  -webkit-perspective: 1100px;
   transform-style: preserve-3d;
 }
 
@@ -344,6 +344,33 @@ html.astroclock-rem {
 .astroclock-root .ac-bauhaus-layer {
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
+}
+
+/* Square dial frame — never ellipse/stretch when HUD hides or mid-flip */
+.astroclock-root .ac-dial-square {
+  container-type: size;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.astroclock-root .ac-dial-square-inner {
+  aspect-ratio: 1 / 1;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  max-width: 100%;
+  max-height: 100%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.astroclock-root .ac-dial-square-inner canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
 }
 
 .astroclock-root .ac-hud [data-ac-actor] {
@@ -371,15 +398,21 @@ html.astroclock-rem {
   }
 }
 
-.ac-cascade-overlay {
-  contain: layout style;
+.ac-inplace-overlay {
+  /* no contain — flattens 3D / breaks backface-visibility */
 }
 
-.ac-cascade-clone {
+.ac-inplace-tile {
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
+}
+
+/* Faces must NOT use preserve-3d — that prevents backface-visibility from hiding. */
+.ac-inplace-face {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transform-style: flat;
+  -webkit-transform-style: flat;
 }
 
 /* Nuxt host — fixed full-viewport shell */

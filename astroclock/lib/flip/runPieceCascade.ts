@@ -422,7 +422,6 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
       direction === 'to-bauhaus'
         ? i * (FLIP_STAGGER_MS * 0.55)
         : (rimWedges.length - 1 - i) * (FLIP_STAGGER_MS * 0.55) + 60;
-    const baseRot = Number.parseFloat(el.style.transform.replace(/[^\d.-]/g, '')) || 0;
     /* extract rotate deg from inline if present */
     const m = /rotate\((-?[\d.]+)deg\)/.exec(el.style.transform);
     const base = m ? Number(m[1]) : 0;

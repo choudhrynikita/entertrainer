@@ -1,7 +1,7 @@
 /* AstroClock island styles — imported only on /engage/astroclock.
-   Theme + utilities only (no preflight). Do NOT put `html { font-size }` here:
-   Vite keeps this chunk linked after client navigations and would blow up the
-   site rem=1px system on /engage and every other publication page. */
+   Theme + utilities only (no preflight). Bare `html { font-size }` is forbidden:
+   Vite keeps this chunk linked after client navigations. Use the class-gated
+   rule below; the page adds/removes `astroclock-rem` on mount/unmount. */
 @import "tailwindcss/theme" layer(theme);
 @import "tailwindcss/utilities" layer(utilities);
 
@@ -18,6 +18,12 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
+
+/* Class-gated rem override — safe if Vite keeps this CSS linked after leave. */
+html.astroclock-rem {
+  font-size: 16px !important;
+}
+
 
 .astroclock-root {
   -webkit-tap-highlight-color: transparent;

@@ -1,6 +1,11 @@
 /**
  * Nominatim geocode proxy for AstroClock.
  * Keeps User-Agent honest and throttles to ~1 req/s process-wide.
+ *
+ * Note: do not use auto-imported `getQuery` here — @nuxt/devtools pulls
+ * h3@2 to the workspace root, and that getQuery expects a Web Request
+ * shape Nitro's event does not have ("Invalid URL"). Parse the query
+ * from the Node request URL instead.
  */
 
 const USER_AGENT =
@@ -16,9 +21,14 @@ export interface GeocodeHit {
   type?: string
 }
 
+function readQ(event: { node?: { req?: { url?: string } }; path?: string }): string {
+  const raw = event.node?.req?.url || event.path || ''
+  const qs = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : ''
+  return String(new URLSearchParams(qs).get('q') ?? '').trim()
+}
+
 export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
-  const q = String(query.q ?? '').trim()
+  const q = readQ(event)
 
   if (q.length < 2) {
     return { results: [] as GeocodeHit[] }

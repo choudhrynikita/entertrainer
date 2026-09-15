@@ -1,5 +1,7 @@
 /* AstroClock island styles — imported only on /engage/astroclock.
-   Tailwind utilities without global preflight so the rest of Entertrainer stays clean. */
+   Theme + utilities only (no preflight). Do NOT put `html { font-size }` here:
+   Vite keeps this chunk linked after client navigations and would blow up the
+   site rem=1px system on /engage and every other publication page. */
 @import "tailwindcss/theme" layer(theme);
 @import "tailwindcss/utilities" layer(utilities);
 

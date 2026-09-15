@@ -10,9 +10,20 @@ useSeoMeta({
   ogUrl: 'https://entertrainer.in/engage/astroclock',
 })
 
+/*
+  Entertrainer's main.css uses `html { font-size: 1px }` (rem == px).
+  Tailwind utilities on this island assume a normal 16px rem.
+  Put the override in useHead (cleared on leave) + a JS safety net —
+  NEVER in an unscoped <style> block: Vite keeps page CSS chunks linked
+  after client navigations, which would leave Engage at 16× scale.
+*/
 useHead({
-  htmlAttrs: { style: 'background:#0B0C10;height:100%' },
-  bodyAttrs: { style: 'background:#0B0C10;margin:0;height:100%;overscroll-behavior:none' },
+  htmlAttrs: {
+    style: 'background:#0B0C10;height:100%;font-size:16px',
+  },
+  bodyAttrs: {
+    style: 'background:#0B0C10;margin:0;height:100%;overscroll-behavior:none',
+  },
   meta: [{ name: 'theme-color', content: '#0B0C10' }],
   link: [
     { rel: 'icon', type: 'image/svg+xml', href: '/astroclock-icon.svg' },
@@ -23,8 +34,21 @@ useHead({
 
 const host = ref<HTMLElement | null>(null)
 let root: Root | null = null
+let prevNuxtHeight = ''
+let prevNuxtMargin = ''
+let prevNuxtBg = ''
 
 onMounted(async () => {
+  const nuxt = document.getElementById('__nuxt')
+  if (nuxt) {
+    prevNuxtHeight = nuxt.style.height
+    prevNuxtMargin = nuxt.style.margin
+    prevNuxtBg = nuxt.style.background
+    nuxt.style.height = '100%'
+    nuxt.style.margin = '0'
+    nuxt.style.background = '#0b0c10'
+  }
+
   if (!host.value) return
   const [{ createRoot }, { createElement }, { AstroClockApp }] = await Promise.all([
     import('react-dom/client'),
@@ -38,6 +62,12 @@ onMounted(async () => {
 onUnmounted(() => {
   root?.unmount()
   root = null
+  const nuxt = document.getElementById('__nuxt')
+  if (nuxt) {
+    nuxt.style.height = prevNuxtHeight
+    nuxt.style.margin = prevNuxtMargin
+    nuxt.style.background = prevNuxtBg
+  }
 })
 </script>
 
@@ -50,23 +80,7 @@ onUnmounted(() => {
   />
 </template>
 
-<style>
-/*
-  Entertrainer's main.css sets `html { font-size: 1px }` so site rem == px.
-  Tailwind utilities (max-w-md, spacing, etc.) assume a normal 16px rem.
-  This bare page owns the document — restore a standard root so the dial
-  is not crushed to a 28px-wide strip.
-*/
-html {
-  font-size: 16px !important;
-}
-html,
-body,
-#__nuxt {
-  height: 100%;
-  margin: 0;
-  background: #0b0c10;
-}
+<style scoped>
 .astroclock-host {
   min-height: 100dvh;
   height: 100%;

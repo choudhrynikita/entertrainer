@@ -169,13 +169,7 @@ export const SOCIAL_PREVIEWS: Record<string, SocialPreview> = {
     key: 'engage',
     label: 'Engage',
     title: 'Engage · Entertrainer',
-    description: 'Short games and little detours — The Mind Reader, PicTune, and AstroClock.'
-  },
-  '/engage/pictune': {
-    key: 'pictune',
-    label: 'PicTune',
-    title: 'PicTune · Engage',
-    description: 'A pictune is a picture you can hear. Print it, screenshot it, send it.'
+    description: 'Short games and little detours — The Mind Reader and AstroClock.'
   },
   '/engage/astroclock': {
     key: 'astroclock',

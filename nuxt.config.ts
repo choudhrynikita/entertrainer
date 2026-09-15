@@ -232,6 +232,8 @@ export default defineNuxtConfig({
     // Educate section removed — keep old links from 404ing.
     '/educate': { redirect: { to: '/', statusCode: 301 } },
     '/educate/**': { redirect: { to: '/', statusCode: 301 } },
+    // PicTune removed — keep old links from 404ing.
+    '/engage/pictune': { redirect: { to: '/engage', statusCode: 301 } },
     // Games renamed to Engage.
     '/games': { redirect: { to: '/engage', statusCode: 301 } },
     '/games/**': { redirect: { to: '/engage/**', statusCode: 301 } },

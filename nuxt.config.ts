@@ -1,3 +1,38 @@
+import { fileURLToPath } from 'node:url'
+import tailwindcss from '@tailwindcss/vite'
+
+// AstroClock is a React island under /engage/astroclock.
+// Do NOT use @vitejs/plugin-react here: Nuxt 3.17 pins Vite 6, but
+// plugin-react@5 resolves top-level Vite 8 / Rolldown and injects
+// builtin:vite-react-refresh-wrapper, which crashes DEV with
+// "Missing field moduleType" (File: [object Object]).
+// Compile .tsx via Vite's esbuild JSX transform instead; HMR refresh
+// for the island is unnecessary (full remount on edit is fine).
+function astroclockReactJsx() {
+  return {
+    name: 'astroclock-react-jsx',
+    // After @vitejs/plugin-vue-jsx (Nuxt unshifts it), restore esbuild
+    // coverage for the React island. vue-jsx sets `esbuild.include` to
+    // /\.ts$/ only, which would otherwise leave .tsx untransformed once
+    // we exclude astroclock/ from the Vue JSX plugin.
+    config() {
+      return {
+        esbuild: {
+          jsx: 'automatic',
+          jsxImportSource: 'react',
+          include: /\.ts$|(?:^|[\\/])astroclock[\\/].*\.[jt]sx$/,
+        },
+        optimizeDeps: {
+          esbuildOptions: {
+            jsx: 'automatic',
+            jsxImportSource: 'react',
+          },
+        },
+      }
+    },
+  }
+}
+
 export default defineNuxtConfig({
   devtools: { enabled: false },
   // @vueuse/motion is gone with the reveal composable it powered: every
@@ -145,6 +180,13 @@ export default defineNuxtConfig({
           description: 'Vertical webcomic studio for phones',
           url: '/dialogue/',
           icons: [{ src: '/dialogue/icons/icon-192.png', sizes: '192x192', type: 'image/png' }]
+        },
+        {
+          name: 'AstroClock — Sidereal Dial',
+          short_name: 'AstroClock',
+          description: 'Birth place and time. A live dial. What today is doing.',
+          url: '/engage/astroclock',
+          icons: [{ src: '/astroclock-icon-192.png', sizes: '192x192', type: 'image/png' }]
         }
       ]
     },
@@ -193,6 +235,37 @@ export default defineNuxtConfig({
     // Games renamed to Engage.
     '/games': { redirect: { to: '/engage', statusCode: 301 } },
     '/games/**': { redirect: { to: '/engage/**', statusCode: 301 } },
+  },
+  alias: {
+    '@astroclock': fileURLToPath(new URL('./astroclock', import.meta.url)),
+  },
+  vite: {
+    // Keep Vue JSX off the React island. Every .tsx in this repo is AstroClock.
+    vueJsx: {
+      exclude: /(?:^|[\\/])astroclock[\\/]/,
+    },
+    plugins: [
+      astroclockReactJsx(),
+      // Tailwind only processes files under astroclock/ via @source in CSS.
+      tailwindcss(),
+    ],
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'lucide-react',
+      ],
+    },
+  },
+  // Ensure .tsx under astroclock compiles with the React JSX transform.
+  typescript: {
+    tsConfig: {
+      compilerOptions: {
+        jsx: 'react-jsx',
+      },
+    },
   },
   nitro: {
     preset: 'vercel',

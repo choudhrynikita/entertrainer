@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">AstroClock</title>
+  <defs>
+    <radialGradient id="field" cx="50%" cy="42%" r="62%">
+      <stop offset="0%" stop-color="#161822"/>
+      <stop offset="70%" stop-color="#0B0C10"/>
+      <stop offset="100%" stop-color="#07080B"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="72%" stop-color="#D4AF37" stop-opacity="0"/>
+      <stop offset="88%" stop-color="#D4AF37" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bezel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F0D78C"/>
+      <stop offset="45%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#8A7020"/>
+    </linearGradient>
+  </defs>
+  <!-- App tile -->
+  <rect width="512" height="512" rx="116" fill="url(#field)"/>
+  <rect x="18" y="18" width="476" height="476" rx="100" fill="none" stroke="#1A1C24" stroke-width="2"/>
+  <!-- Soft gold halo -->
+  <circle cx="256" cy="256" r="198" fill="url(#halo)"/>
+  <!-- Outer bezel -->
+  <circle cx="256" cy="256" r="168" fill="none" stroke="url(#bezel)" stroke-width="10"/>
+  <circle cx="256" cy="256" r="158" fill="none" stroke="#D4AF37" stroke-width="1.5" opacity="0.55"/>
+  <!-- Zodiac / rashi tick ring -->
+  <g stroke="#D4AF37" stroke-linecap="round">
+    <!-- 12 major ticks -->
+    <g stroke-width="3.5" opacity="0.9">
+      <line x1="256" y1="98" x2="256" y2="118"/>
+      <line x1="256" y1="394" x2="256" y2="414"/>
+      <line x1="98" y1="256" x2="118" y2="256"/>
+      <line x1="394" y1="256" x2="414" y2="256"/>
+      <line x1="144.3" y1="144.3" x2="158.4" y2="158.4"/>
+      <line x1="353.6" y1="353.6" x2="367.7" y2="367.7"/>
+      <line x1="367.7" y1="144.3" x2="353.6" y2="158.4"/>
+      <line x1="158.4" y1="353.6" x2="144.3" y2="367.7"/>
+      <line x1="187.2" y1="110.8" x2="196.5" y2="128.2"/>
+      <line x1="324.8" y1="383.8" x2="315.5" y2="401.2"/>
+      <line x1="401.2" y1="187.2" x2="383.8" y2="196.5"/>
+      <line x1="110.8" y1="324.8" x2="128.2" y2="315.5"/>
+    </g>
+  </g>
+  <!-- Inner sky ring (nakshatra hint) -->
+  <circle cx="256" cy="256" r="118" fill="none" stroke="#64B5F6" stroke-width="1.8" opacity="0.55"/>
+  <g fill="#64B5F6" opacity="0.7">
+    <circle cx="256" cy="138" r="2.4"/>
+    <circle cx="338.7" cy="172.3" r="2.2"/>
+    <circle cx="374" cy="256" r="2.4"/>
+    <circle cx="338.7" cy="339.7" r="2.2"/>
+    <circle cx="256" cy="374" r="2.4"/>
+    <circle cx="173.3" cy="339.7" r="2.2"/>
+    <circle cx="138" cy="256" r="2.4"/>
+    <circle cx="173.3" cy="172.3" r="2.2"/>
+  </g>
+  <!-- Subtle star dots -->
+  <g fill="#E0E2EC" opacity="0.35">
+    <circle cx="128" cy="108" r="1.6"/>
+    <circle cx="392" cy="122" r="1.4"/>
+    <circle cx="420" cy="300" r="1.5"/>
+    <circle cx="96" cy="320" r="1.3"/>
+    <circle cx="360" cy="400" r="1.4"/>
+  </g>
+  <!-- Hand (elegant, one pointer) -->
+  <g>
+    <line x1="256" y1="256" x2="256" y2="148" stroke="#F0D78C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="256" y2="148" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- tip jewel -->
+    <circle cx="256" cy="148" r="7" fill="#64B5F6"/>
+    <circle cx="256" cy="148" r="3.5" fill="#E8F4FF"/>
+  </g>
+  <!-- Hub -->
+  <circle cx="256" cy="256" r="22" fill="#0B0C10" stroke="#D4AF37" stroke-width="3.5"/>
+  <circle cx="256" cy="256" r="10" fill="#D4AF37"/>
+  <circle cx="256" cy="256" r="4" fill="#0B0C10"/>
+</svg>

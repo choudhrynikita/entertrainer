@@ -26,7 +26,13 @@ import { getSocialImage, getSocialPreview, SITE_URL } from '~/content/social-pre
 const r = useRoute()
 const theme = useThemeStore()
 const siteSettings = useSiteSettings()
-const showPreloader = ref(!r.path.startsWith('/engage/pictune'))
+const showPreloader = ref(
+  !(
+    r.path.startsWith('/engage/pictune') ||
+    r.path.startsWith('/engage/astroclock') ||
+    r.path.startsWith('/engage/read-my-mind')
+  )
+)
 
 function onPreloaderComplete() {
   showPreloader.value = false
@@ -64,7 +70,8 @@ const bare = computed(() =>
   r.path.startsWith('/courses/ai-atlas') ||
   r.path.startsWith('/instructional-design') ||
   r.path.startsWith('/engage/read-my-mind') ||
-  r.path.startsWith('/engage/pictune')
+  r.path.startsWith('/engage/pictune') ||
+  r.path.startsWith('/engage/astroclock')
 )
 
 onMounted(() => {
@@ -77,7 +84,7 @@ onBeforeUnmount(() => theme.dispose())
 <template>
   <div id="app-root">
     <EdPreloader v-if="showPreloader" @complete="onPreloaderComplete" />
-    <EdDailyWordSplash />
+    <EdDailyWordSplash v-if="!bare" />
     <EdSettingsPanel />
     <div v-show="!showPreloader" :inert="showPreloader ? '' : undefined">
       <template v-if="bare">

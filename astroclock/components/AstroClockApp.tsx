@@ -29,12 +29,15 @@ import { birthDateObj, clearConfig, loadConfig, saveConfig } from '@astroclock/l
 import { formatMsClock, scrubHint } from '@astroclock/lib/format';
 import { TopBar, type MainView } from './TopBar';
 import { ClockCanvas, type FrameCache } from './ClockCanvas';
-import { BauhausClock } from './BauhausClock';
+import { SkyClock3D } from './SkyClock3D';
+import { MetalClock3D } from './MetalClock3D';
 import { HUD } from './HUD';
+import { ReverseDayDock } from './ReverseDayDock';
 import {
   FLIP_MS,
   isFlipping,
   showGeekyHud,
+  showReverseDock,
   type DialFace,
 } from '@astroclock/lib/flip/types';
 import { ConfigDrawer } from './ConfigDrawer';
@@ -49,6 +52,8 @@ export function AstroClockApp() {
   const [birth, setBirth] = useState<BirthConfig>({ ...DEMO_BIRTH });
   const [draft, setDraft] = useState<BirthConfig>({ ...DEMO_BIRTH });
   const [hydrated, setHydrated] = useState(false);
+  /** Flat 2D sky fallback (reduced-motion or ?sky=2d). Default = volumetric 3D. */
+  const [useFlatSky, setUseFlatSky] = useState(false);
   const [live, setLive] = useState(true);
   const [scrubHours, setScrubHours] = useState(0);
   const [simTime, setSimTime] = useState(() => Date.now());
@@ -59,6 +64,7 @@ export function AstroClockApp() {
   const [view, setView] = useState<MainView>('dial');
   const [face, setFace] = useState<DialFace>('sky');
   const flipTimerRef = useRef<number | null>(null);
+  const [skyCanvas, setSkyCanvas] = useState<HTMLCanvasElement | null>(null);
   const [visible, setVisible] = useState(true);
   const [natalLons, setNatalLons] = useState<LonMap | null>(null);
   const [natalLerp, setNatalLerp] = useState(1);
@@ -106,6 +112,18 @@ export function AstroClockApp() {
     const jd = julianDay(bd);
     setNatalLons(lonMapFromPlanets(computePlanets(jd)));
     setNatalLerp(1);
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const force2d = q.get('sky') === '2d';
+      const force3d = q.get('sky') === '3d';
+      const reduce =
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      /* Default = volumetric 3D. Flat only for ?sky=2d or reduced-motion
+         (unless ?sky=3d overrides — headless audits / force-volumetric). */
+      setUseFlatSky(force2d || (reduce && !force3d));
+    } catch {
+      setUseFlatSky(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -455,41 +473,66 @@ export function AstroClockApp() {
               isFlipping(face) ? 'ac-flip-stage--locked' : ''
             }`}
           >
-            <div className="ac-flip-card">
-              <div
-                className="ac-flip-face ac-flip-face--front"
-                aria-hidden={face === 'bauhaus'}
-              >
-                <div className="ac-dial-square absolute inset-0 w-full h-full">
-                  <div className="ac-dial-square-inner">
-                    <ClockCanvas
-                      simTime={simTime}
-                      lat={+birth.lat}
-                      lon={+birth.lon}
-                      natalLons={currentNatal}
-                      natalLerp={natalLerp}
-                      selected={selected}
-                      visible={visible && view === 'dial'}
-                      onFrame={onFrame}
-                      onSelect={handleSelect}
-                      onNatalLerpTick={() => {}}
-                      onEmptyTap={face === 'sky' ? flipToBauhaus : undefined}
-                    />
+            {/* Default: volumetric Three.js sky dial + morph to metal reverse */}
+            {!useFlatSky && (
+              <SkyClock3D
+                simTime={simTime}
+                lat={+birth.lat}
+                lon={+birth.lon}
+                natalLons={currentNatal}
+                natalLerp={natalLerp}
+                selected={selected}
+                visible={visible && view === 'dial'}
+                face={face}
+                interactive={face === 'sky' || face === 'bauhaus'}
+                onFrame={onFrame}
+                onSelect={handleSelect}
+                onEmptyTap={face === 'sky' ? flipToBauhaus : undefined}
+                onFlipBack={flipToSky}
+              />
+            )}
+            {/* Reduced-motion / fallback: 2D ClockCanvas + MetalClock3D tumble */}
+            {useFlatSky && (
+              <>
+                <div
+                  className={`ac-sky-layer ${
+                    face === 'sky'
+                      ? 'ac-sky-layer--in'
+                      : face === 'flipping-to-bauhaus'
+                        ? 'ac-sky-layer--exit'
+                        : 'ac-sky-layer--out'
+                  }`}
+                  aria-hidden={face !== 'sky'}
+                >
+                  <div className="ac-dial-square absolute inset-0 w-full h-full">
+                    <div className="ac-dial-square-inner">
+                      <ClockCanvas
+                        simTime={simTime}
+                        lat={+birth.lat}
+                        lon={+birth.lon}
+                        natalLons={currentNatal}
+                        natalLerp={natalLerp}
+                        selected={selected}
+                        visible={visible && view === 'dial'}
+                        onFrame={onFrame}
+                        onSelect={handleSelect}
+                        onNatalLerpTick={() => {}}
+                        onEmptyTap={face === 'sky' ? flipToBauhaus : undefined}
+                        onCanvasEl={setSkyCanvas}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div
-                className="ac-flip-face ac-flip-face--back"
-                aria-hidden={face === 'sky'}
-              >
-                <BauhausClock
+                <MetalClock3D
                   simTime={simTime}
                   visible={visible && view === 'dial'}
+                  face={face}
+                  skyCanvas={skyCanvas}
                   interactive={face === 'bauhaus'}
                   onFlipBack={flipToSky}
                 />
-              </div>
-            </div>
+              </>
+            )}
           </div>
           {showSim && view === 'dial' && face === 'sky' && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in z-10 pointer-events-none">
@@ -497,15 +540,13 @@ export function AstroClockApp() {
             </div>
           )}
           {view === 'dial' && (
-            <div
-              className={`ac-hud-host shrink-0 ${
-                showGeekyHud(face) ? 'ac-hud-host--in' : 'ac-hud-host--out'
-              }`}
-              aria-hidden={!showGeekyHud(face)}
-            >
-              {(face === 'sky' ||
-                face === 'flipping-to-sky' ||
-                face === 'flipping-to-bauhaus') && (
+            <div className="ac-hud-dock-stack shrink-0" data-ac-dock-stack>
+              <div
+                className={`ac-hud-host ${
+                  showGeekyHud(face) ? 'ac-hud-host--in' : 'ac-hud-host--out'
+                }`}
+                aria-hidden={!showGeekyHud(face)}
+              >
                 <HUD
                   maha={maha}
                   antar={antar}
@@ -522,7 +563,21 @@ export function AstroClockApp() {
                   onToggleLive={handleToggleLive}
                   onScrub={handleScrub}
                 />
-              )}
+              </div>
+              <div
+                className={`ac-hud-host ac-reverse-dock-host ${
+                  showReverseDock(face) ? 'ac-hud-host--in' : 'ac-hud-host--out'
+                }`}
+                aria-hidden={!showReverseDock(face)}
+              >
+                <ReverseDayDock
+                  simTime={simTime}
+                  insights={todayInsights}
+                  tithi={tithi}
+                  interactive={face === 'bauhaus'}
+                  onSky={flipToSky}
+                />
+              </div>
             </div>
           )}
         </div>

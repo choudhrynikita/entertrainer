@@ -329,12 +329,32 @@ html.astroclock-rem {
 
 
 
-/* Clean dial flip — dual real faces, crossfade + light tilt (no canvas-stealing overlays).
-   Full rotateY(180)+backface blanks 2D canvas on iOS Safari mid-flight; this stays calm. */
+
+/* Volumetric sky dial (primary WebGL stage) */
+.astroclock-root .ac-sky3d {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  z-index: 3;
+}
+
+.astroclock-root .ac-sky3d--active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.astroclock-root .ac-sky3d-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  outline: none;
+}
+
+/* WebGL metal flip stage — sky layer + Three.js tumble (no CSS opacity “flip”). */
 .astroclock-root .ac-flip-stage {
-  perspective: 1600px;
-  -webkit-perspective: 1600px;
   position: relative;
+  isolation: isolate;
 }
 
 .astroclock-root .ac-flip-stage--locked {
@@ -342,99 +362,76 @@ html.astroclock-rem {
   user-select: none;
 }
 
-.astroclock-root .ac-flip-card {
-  position: absolute;
-  inset: 0;
-}
-
-.astroclock-root .ac-flip-face {
+.astroclock-root .ac-sky-layer {
   position: absolute;
   inset: 0;
   min-height: 0;
-  transform-origin: center center;
-  will-change: opacity, transform;
-}
-
-.astroclock-root .ac-flip-face--front {
-  opacity: 1;
-  transform: rotateY(0deg) scale(1);
   z-index: 2;
-  transition:
-    opacity 0.38s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.12s linear;
 }
 
-.astroclock-root .ac-flip-face--back {
-  opacity: 0;
-  transform: rotateY(-16deg) scale(0.975);
-  z-index: 1;
-  pointer-events: none;
-  transition:
-    opacity 0.5s cubic-bezier(0, 0, 0.2, 1) 0.12s,
-    transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Flipping / settled on Bauhaus: sky out fast, bauhaus alone */
-.astroclock-root [data-face='flipping-to-bauhaus'] .ac-flip-face--front,
-.astroclock-root [data-face='bauhaus'] .ac-flip-face--front {
-  opacity: 0;
-  transform: rotateY(18deg) scale(0.97);
-  pointer-events: none;
-  z-index: 1;
-  /* Settled: fully suppress any residual paint */
-  visibility: hidden;
-  transition:
-    opacity 0.38s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.85s cubic-bezier(0.4, 0, 0.2, 1),
-    visibility 0s linear 0.4s;
-}
-
-.astroclock-root [data-face='flipping-to-bauhaus'] .ac-flip-face--front {
-  /* Mid-flip: keep visibility so opacity can animate out, then hide */
-  visibility: visible;
-  transition:
-    opacity 0.38s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.astroclock-root [data-face='bauhaus'] .ac-flip-face--front {
-  visibility: hidden;
-}
-
-.astroclock-root [data-face='flipping-to-bauhaus'] .ac-flip-face--back,
-.astroclock-root [data-face='bauhaus'] .ac-flip-face--back {
+.astroclock-root .ac-sky-layer--in {
   opacity: 1;
-  transform: rotateY(0deg) scale(1);
+  visibility: visible;
   pointer-events: auto;
-  z-index: 2;
-  visibility: visible;
 }
 
-/* Reverse: bauhaus out fast, sky restored */
-.astroclock-root [data-face='flipping-to-sky'] .ac-flip-face--front {
-  opacity: 1;
-  transform: rotateY(0deg) scale(1);
-  pointer-events: auto;
-  z-index: 2;
-  visibility: visible;
-  transition:
-    opacity 0.5s cubic-bezier(0, 0, 0.2, 1) 0.1s,
-    transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.astroclock-root [data-face='flipping-to-sky'] .ac-flip-face--back {
+.astroclock-root .ac-sky-layer--out {
   opacity: 0;
-  transform: rotateY(-18deg) scale(0.97);
-  pointer-events: none;
-  z-index: 1;
-  transition:
-    opacity 0.38s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.astroclock-root [data-face='sky'] .ac-flip-face--back {
   visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.08s linear, visibility 0s linear 0.08s;
+}
+
+/* Early flip: fade sky over ~280ms so metal tumble/specular reads underneath */
+.astroclock-root .ac-sky-layer--exit {
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.28s linear, visibility 0s linear 0.28s;
+  z-index: 4;
+}
+
+.astroclock-root .ac-metal3d {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  z-index: 1;
+}
+
+.astroclock-root .ac-metal3d--idle {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.astroclock-root .ac-metal3d--active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.astroclock-root .ac-metal3d-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  outline: none;
+}
+
+.astroclock-root .ac-bauhaus-chrome {
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.astroclock-root .ac-bauhaus-chrome--in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.astroclock-root .ac-bauhaus-chrome--out {
+  opacity: 0;
+  transform: translateY(10px);
   pointer-events: none;
 }
 
@@ -470,6 +467,23 @@ html.astroclock-rem {
   touch-action: none;
 }
 
+/* Dual dock stack: geeky (sky) + reverse day-stats share one slot */
+.astroclock-root .ac-hud-dock-stack {
+  display: grid;
+  flex-shrink: 0;
+  position: relative;
+}
+.astroclock-root .ac-hud-dock-stack > .ac-hud-host {
+  grid-area: 1 / 1;
+  width: 100%;
+}
+.astroclock-root .ac-reverse-dock-host {
+  z-index: 1;
+}
+.astroclock-root .ac-reverse-dock .ac-day-mini-arc {
+  min-height: 0.5rem;
+}
+
 /* Geeky HUD: fade/slide out on flip to Bauhaus; reverse restores */
 .astroclock-root .ac-hud-host {
   overflow: hidden;
@@ -486,16 +500,14 @@ html.astroclock-rem {
 
 .astroclock-root .ac-hud-host--out {
   opacity: 0;
-  transform: translateY(18px);
-  max-height: 0;
+  transform: translateY(12px);
+  /* Keep layout height — collapsing max-height jumps the dial mid-flip (~110px). */
   pointer-events: none;
-  /* Avoid faint cards lingering under the dial */
   visibility: hidden;
   transition:
-    opacity 0.28s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    visibility 0s linear 0.3s;
+    opacity 0.18s cubic-bezier(0.4, 0, 1, 1),
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s linear 0.18s;
 }
 
 .astroclock-root .ac-hud-host--in {
@@ -505,7 +517,8 @@ html.astroclock-rem {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .astroclock-root .ac-flip-face,
+  .astroclock-root .ac-sky-layer,
+  .astroclock-root .ac-bauhaus-chrome,
   .astroclock-root .ac-hud-host {
     transition-duration: 0.01ms !important;
   }

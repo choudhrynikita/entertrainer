@@ -149,6 +149,13 @@ export default defineNuxtConfig({
           description: 'Vertical webcomic studio for phones',
           url: '/dialogue/',
           icons: [{ src: '/dialogue/icons/icon-192.png', sizes: '192x192', type: 'image/png' }]
+        },
+        {
+          name: 'AstroClock — Sidereal Dial',
+          short_name: 'AstroClock',
+          description: 'Birth place and time. A live dial. What today is doing.',
+          url: '/engage/astroclock',
+          icons: [{ src: '/astroclock-icon-192.png', sizes: '192x192', type: 'image/png' }]
         }
       ]
     },

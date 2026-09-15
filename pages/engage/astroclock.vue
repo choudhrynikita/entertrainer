@@ -14,6 +14,11 @@ useHead({
   htmlAttrs: { style: 'background:#0B0C10;height:100%' },
   bodyAttrs: { style: 'background:#0B0C10;margin:0;height:100%;overscroll-behavior:none' },
   meta: [{ name: 'theme-color', content: '#0B0C10' }],
+  link: [
+    { rel: 'icon', type: 'image/svg+xml', href: '/astroclock-icon.svg' },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/astroclock-icon-192.png' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/astroclock-icon-192.png' },
+  ],
 })
 
 const host = ref<HTMLElement | null>(null)

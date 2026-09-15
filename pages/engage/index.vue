@@ -52,12 +52,34 @@ const MIND_READER_SYMBOLS = [
       <li class="u-reveal">
         <NuxtLink to="/engage/astroclock" class="engage__card engage__card--astroclock">
           <span class="engage__icon engage__icon--astroclock" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.7"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9" />
-              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
-              <path d="M12 7.2v4.1l2.6 2.1" />
-              <path d="M7.4 5.8 6 4.4M16.6 5.8 18 4.4M5.8 16.6 4.4 18M18.2 16.6 19.6 18" />
+            <svg viewBox="0 0 48 48" width="34" height="34" fill="none" aria-hidden="true">
+              <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.6" opacity="0.35"/>
+              <circle cx="24" cy="24" r="15.5" stroke="currentColor" stroke-width="2.2"/>
+              <circle cx="24" cy="24" r="10.5" stroke="#64B5F6" stroke-width="1.3" opacity="0.85"/>
+              <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <line x1="24" y1="5.5" x2="24" y2="9.2"/>
+                <line x1="24" y1="38.8" x2="24" y2="42.5"/>
+                <line x1="5.5" y1="24" x2="9.2" y2="24"/>
+                <line x1="38.8" y1="24" x2="42.5" y2="24"/>
+                <line x1="11.2" y1="11.2" x2="13.8" y2="13.8"/>
+                <line x1="34.2" y1="34.2" x2="36.8" y2="36.8"/>
+                <line x1="36.8" y1="11.2" x2="34.2" y2="13.8"/>
+                <line x1="13.8" y1="34.2" x2="11.2" y2="36.8"/>
+              </g>
+              <g fill="#64B5F6" opacity="0.9">
+                <circle cx="24" cy="13.5" r="1.1"/>
+                <circle cx="31.5" cy="16.8" r="0.95"/>
+                <circle cx="34.5" cy="24" r="1.1"/>
+                <circle cx="31.5" cy="31.2" r="0.95"/>
+                <circle cx="24" cy="34.5" r="1.1"/>
+                <circle cx="16.5" cy="31.2" r="0.95"/>
+                <circle cx="13.5" cy="24" r="1.1"/>
+                <circle cx="16.5" cy="16.8" r="0.95"/>
+              </g>
+              <line x1="24" y1="24" x2="24" y2="12.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="24" cy="12.5" r="1.8" fill="#64B5F6"/>
+              <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
+              <circle cx="24" cy="24" r="1.35" fill="var(--accent)"/>
             </svg>
           </span>
           <span class="engage__card-text">
@@ -153,6 +175,20 @@ const MIND_READER_SYMBOLS = [
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+
+.engage__icon--astroclock {
+  display: grid;
+  place-items: center;
+  padding: 7rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.engage__icon--astroclock svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .engage__card-text {

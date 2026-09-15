@@ -56,6 +56,8 @@ interface ClockCanvasProps {
   onNatalLerpTick: (t: number) => void;
   /** Empty-canvas tap (no planet hit) — used to flip to day clock. */
   onEmptyTap?: () => void;
+  /** Expose the live canvas for WebGL front-face texturing. */
+  onCanvasEl?: (el: HTMLCanvasElement | null) => void;
 }
 
 function lonToAngle(lon: number): number {
@@ -104,6 +106,7 @@ export function ClockCanvas({
   onSelect,
   onNatalLerpTick,
   onEmptyTap,
+  onCanvasEl,
 }: ClockCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitRef = useRef<Hit[] | null>(null);
@@ -681,6 +684,11 @@ export function ClockCanvas({
     if (id) onSelect(id);
     else onEmptyTap?.();
   };
+
+  useEffect(() => {
+    onCanvasEl?.(canvasRef.current);
+    return () => onCanvasEl?.(null);
+  }, [onCanvasEl]);
 
   return (
     <canvas

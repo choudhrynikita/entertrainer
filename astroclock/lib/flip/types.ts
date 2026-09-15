@@ -6,7 +6,8 @@ export type DialFace =
 
 export type FlipDirection = 'to-bauhaus' | 'to-sky';
 
-/** Total choreography length (ms). Cap ~1.2–1.8s. */
-export const FLIP_TOTAL_MS = 1650;
+/** Total choreography length (ms). Cap ~1.2–1.6s. */
+export const FLIP_TOTAL_MS = 1500;
 export const FLIP_REDUCED_MS = 280;
-export const FLIP_STAGGER_MS = 62;
+/** Stagger between seats — delay only, no translation. */
+export const FLIP_STAGGER_MS = 55;

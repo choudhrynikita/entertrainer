@@ -145,22 +145,26 @@ export function AstroClockApp() {
       return;
     }
     setFace('flipping-to-bauhaus');
+    /* Two frames + resize so Bauhaus canvas paints before we snapshot backs. */
     requestAnimationFrame(() => {
-      const stage = stageRef.current;
-      if (!stage) {
-        setFace('bauhaus');
-        return;
-      }
-      cascadeRef.current = runPieceCascade({
-        stage,
-        direction: 'to-bauhaus',
-        skyLayer: skyLayerRef.current,
-        bauhausLayer: bauhausLayerRef.current,
-        hudRoot: hudRef.current,
-        onComplete: () => {
-          cascadeRef.current = null;
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+        const stage = stageRef.current;
+        if (!stage) {
           setFace('bauhaus');
-        },
+          return;
+        }
+        cascadeRef.current = runPieceCascade({
+          stage,
+          direction: 'to-bauhaus',
+          skyLayer: skyLayerRef.current,
+          bauhausLayer: bauhausLayerRef.current,
+          hudRoot: hudRef.current,
+          onComplete: () => {
+            cascadeRef.current = null;
+            setFace('bauhaus');
+          },
+        });
       });
     });
   }, [face, prefersReducedMotion]);
@@ -173,9 +177,10 @@ export function AstroClockApp() {
       return;
     }
     setFace('flipping-to-sky');
-    /* Wait a frame so HUD mounts and we can measure actors. */
+    /* Wait so HUD + sky mount and canvases paint before snapshot/measure. */
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
         const stage = stageRef.current;
         if (!stage) {
           setFace('sky');
@@ -488,22 +493,26 @@ export function AstroClockApp() {
               face === 'flipping-to-sky') && (
               <div
                 ref={skyLayerRef}
-                className="ac-sky-layer absolute inset-0"
+                className="ac-sky-layer absolute inset-0 min-h-0"
                 aria-hidden={face !== 'sky'}
               >
-                <ClockCanvas
-                  simTime={simTime}
-                  lat={+birth.lat}
-                  lon={+birth.lon}
-                  natalLons={currentNatal}
-                  natalLerp={natalLerp}
-                  selected={selected}
-                  visible={visible && view === 'dial' && face !== 'bauhaus'}
-                  onFrame={onFrame}
-                  onSelect={handleSelect}
-                  onNatalLerpTick={() => {}}
-                  onEmptyTap={flipToBauhaus}
-                />
+                <div className="ac-dial-square absolute inset-0 w-full h-full">
+                  <div className="ac-dial-square-inner">
+                    <ClockCanvas
+                      simTime={simTime}
+                      lat={+birth.lat}
+                      lon={+birth.lon}
+                      natalLons={currentNatal}
+                      natalLerp={natalLerp}
+                      selected={selected}
+                      visible={visible && view === 'dial' && face !== 'bauhaus'}
+                      onFrame={onFrame}
+                      onSelect={handleSelect}
+                      onNatalLerpTick={() => {}}
+                      onEmptyTap={flipToBauhaus}
+                    />
+                  </div>
+                </div>
               </div>
             )}
             {(face === 'bauhaus' ||

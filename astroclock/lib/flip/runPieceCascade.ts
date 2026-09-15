@@ -272,7 +272,8 @@ function animateClone(
     duration,
     delay,
     easing: EASE,
-    fill: 'forwards',
+    /* both: hold first keyframe during stagger delay (critical for reverse) */
+    fill: 'both',
   });
 }
 

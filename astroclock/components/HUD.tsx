@@ -1,5 +1,6 @@
 
 import { GRAHAS, type GrahaId, type SpeedMap } from '@astroclock/lib/astro';
+import type { DialFace } from '@astroclock/lib/flip/types';
 
 interface HUDProps {
   maha: string;
@@ -12,6 +13,7 @@ interface HUDProps {
   live: boolean;
   scrubHours: number;
   scrubLabel: string;
+  face?: DialFace;
   onSelect: (id: GrahaId) => void;
   onToggleLive: () => void;
   onScrub: (hours: number) => void;
@@ -28,15 +30,29 @@ export function HUD({
   live,
   scrubHours,
   scrubLabel,
+  face = 'sky',
   onSelect,
   onToggleLive,
   onScrub,
 }: HUDProps) {
+  const locked =
+    face === 'flipping-to-bauhaus' || face === 'flipping-to-sky';
+
   return (
-    <footer className="ac-hud shrink-0 border-t border-white/10 ac-glass max-h-[32vh] overflow-y-auto">
-      <div className="px-2.5 py-1.5 space-y-1.5">
+    <footer
+      className="ac-hud shrink-0 border-t border-white/10 ac-glass max-h-[32vh] overflow-y-auto"
+      aria-hidden={locked}
+      data-face={face}
+      data-ac-hud
+    >
+      <div className="ac-hud-stage px-2.5 py-1.5 space-y-1.5">
         <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-          <div className="ac-chip rounded-lg px-2 py-1.5">
+          <div
+            className="ac-chip rounded-lg px-2 py-1.5"
+            data-ac-actor
+            data-ac-order="0"
+            data-piece="maha"
+          >
             <div className="text-mist/55 uppercase tracking-wider text-[9px]">
               Mahadasha
             </div>
@@ -50,7 +66,12 @@ export function HUD({
               {antar}
             </div>
           </div>
-          <div className="ac-chip rounded-lg px-2 py-1.5">
+          <div
+            className="ac-chip rounded-lg px-2 py-1.5"
+            data-ac-actor
+            data-ac-order="1"
+            data-piece="tithi"
+          >
             <div className="text-mist/55 uppercase tracking-wider text-[9px]">
               Tithi
             </div>
@@ -70,7 +91,7 @@ export function HUD({
           className="flex gap-1 overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
         >
-          {GRAHAS.map((g) => {
+          {GRAHAS.map((g, i) => {
             const sp = speeds?.[g.id] ?? 0;
             const active = selected === g.id;
             const retro = sp < -0.01;
@@ -79,6 +100,10 @@ export function HUD({
                 key={g.id}
                 type="button"
                 onClick={() => onSelect(g.id)}
+                disabled={locked}
+                data-ac-actor
+                data-ac-order={String(2 + i)}
+                data-piece={`graha-${g.id}`}
                 className={`ac-chip graha-chip shrink-0 rounded-full px-2 py-1 min-h-8 text-[10px] font-medium flex items-center gap-0.5 ${
                   active ? 'active' : ''
                 } ${retro ? 'retro' : ''}`}
@@ -93,7 +118,12 @@ export function HUD({
           })}
         </div>
 
-        <div className="ac-chip rounded-lg px-2 py-1.5">
+        <div
+          className="ac-chip rounded-lg px-2 py-1.5"
+          data-ac-actor
+          data-ac-order="9"
+          data-piece="harmonic"
+        >
           <div className="flex justify-between items-center mb-0.5">
             <span className="text-[9px] uppercase tracking-wider text-mist/55">
               Harmonic Resonance
@@ -112,19 +142,29 @@ export function HUD({
           <button
             type="button"
             onClick={onToggleLive}
+            disabled={locked}
+            data-ac-actor
+            data-ac-order="10"
+            data-piece="live"
             className={`ac-chip rounded-lg px-2.5 py-2 min-h-10 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
               live ? 'active' : ''
             }`}
           >
             Live Tick
           </button>
-          <div className="flex-1 min-w-0">
+          <div
+            className="flex-1 min-w-0"
+            data-ac-actor
+            data-ac-order="11"
+            data-piece="scrub"
+          >
             <input
               type="range"
               min={-72}
               max={72}
               value={scrubHours}
               step={0.25}
+              disabled={locked}
               onChange={(e) => onScrub(Number(e.target.value))}
               className="scrub w-full h-2 appearance-none rounded-full bg-white/10 outline-none"
             />

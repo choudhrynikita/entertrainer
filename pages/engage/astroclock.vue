@@ -23,7 +23,13 @@ useHead({
   bodyAttrs: {
     style: 'background:#0B0C10;margin:0;height:100%;overscroll-behavior:none',
   },
-  meta: [{ name: 'theme-color', content: '#0B0C10' }],
+  meta: [
+    { name: 'theme-color', content: '#0B0C10' },
+    { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
+    { name: 'apple-mobile-web-app-capable', content: 'yes' },
+    { name: 'mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+  ],
   link: [
     { rel: 'icon', type: 'image/svg+xml', href: '/astroclock-icon.svg' },
     { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/astroclock-icon-192.png' },
@@ -109,9 +115,13 @@ onUnmounted(() => {
 
 <style scoped>
 .astroclock-host {
-  min-height: 100dvh;
-  height: 100%;
+  position: fixed;
+  inset: 0;
   width: 100%;
+  height: 100dvh;
+  height: 100svh;
+  margin: 0;
   background: #0b0c10;
+  overflow: hidden;
 }
 </style>

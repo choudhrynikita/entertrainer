@@ -33,41 +33,41 @@ export function HUD({
   onScrub,
 }: HUDProps) {
   return (
-    <footer className="ac-hud shrink-0 border-t border-white/10 ac-glass max-h-[36vh] overflow-y-auto">
-      <div className="px-3 py-2.5 space-y-2.5">
-        <div className="grid grid-cols-2 gap-2 text-[12px]">
-          <div className="ac-chip rounded-lg px-2.5 py-2.5">
-            <div className="text-mist/55 uppercase tracking-wider text-[10px]">
+    <footer className="ac-hud shrink-0 border-t border-white/10 ac-glass max-h-[32vh] overflow-y-auto">
+      <div className="px-2.5 py-1.5 space-y-1.5">
+        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+          <div className="ac-chip rounded-lg px-2 py-1.5">
+            <div className="text-mist/55 uppercase tracking-wider text-[9px]">
               Mahadasha
             </div>
-            <div className="font-medium text-gold truncate text-[13px] leading-snug mt-0.5">
+            <div className="font-medium text-gold truncate text-[12px] leading-snug">
               {maha}
             </div>
-            <div className="text-mist/55 uppercase tracking-wider text-[10px] mt-1.5">
+            <div className="text-mist/55 uppercase tracking-wider text-[9px] mt-1">
               Antardasha
             </div>
-            <div className="font-medium text-sky truncate text-[13px] leading-snug mt-0.5">
+            <div className="font-medium text-sky truncate text-[12px] leading-snug">
               {antar}
             </div>
           </div>
-          <div className="ac-chip rounded-lg px-2.5 py-2.5">
-            <div className="text-mist/55 uppercase tracking-wider text-[10px]">
+          <div className="ac-chip rounded-lg px-2 py-1.5">
+            <div className="text-mist/55 uppercase tracking-wider text-[9px]">
               Tithi
             </div>
-            <div className="font-medium truncate text-[13px] leading-snug mt-0.5">
+            <div className="font-medium truncate text-[12px] leading-snug">
               {tithi}
             </div>
-            <div className="text-mist/55 uppercase tracking-wider text-[10px] mt-1.5">
+            <div className="text-mist/55 uppercase tracking-wider text-[9px] mt-1">
               Lagna
             </div>
-            <div className="font-medium text-jade truncate text-[13px] leading-snug mt-0.5">
+            <div className="font-medium text-jade truncate text-[12px] leading-snug">
               {lagna}
             </div>
           </div>
         </div>
 
         <div
-          className="flex gap-1.5 overflow-x-auto pb-0.5"
+          className="flex gap-1 overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
         >
           {GRAHAS.map((g) => {
@@ -79,13 +79,13 @@ export function HUD({
                 key={g.id}
                 type="button"
                 onClick={() => onSelect(g.id)}
-                className={`ac-chip graha-chip shrink-0 rounded-full px-2.5 py-1.5 min-h-9 text-[11px] font-medium flex items-center gap-1 ${
+                className={`ac-chip graha-chip shrink-0 rounded-full px-2 py-1 min-h-8 text-[10px] font-medium flex items-center gap-0.5 ${
                   active ? 'active' : ''
                 } ${retro ? 'retro' : ''}`}
               >
                 <span style={{ color: g.color }}>{g.symbol}</span>
                 <span>{g.id.slice(0, 2)}</span>
-                <span className="font-mono text-[9px] opacity-70">
+                <span className="font-mono text-[8px] opacity-70">
                   {sp >= 0 ? 'D' : 'R'}
                 </span>
               </button>
@@ -93,14 +93,14 @@ export function HUD({
           })}
         </div>
 
-        <div className="ac-chip rounded-lg px-2.5 py-2.5">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] uppercase tracking-wider text-mist/55">
+        <div className="ac-chip rounded-lg px-2 py-1.5">
+          <div className="flex justify-between items-center mb-0.5">
+            <span className="text-[9px] uppercase tracking-wider text-mist/55">
               Harmonic Resonance
             </span>
-            <span className="font-mono text-base text-gold">{hrs}</span>
+            <span className="font-mono text-sm text-gold">{hrs}</span>
           </div>
-          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-1 rounded-full bg-white/10 overflow-hidden">
             <div
               className="score-bar h-full rounded-full bg-gradient-to-r from-sky via-gold to-jade"
               style={{ width: `${hrs}%` }}
@@ -108,11 +108,11 @@ export function HUD({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pb-0.5">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onToggleLive}
-            className={`ac-chip rounded-lg px-3 py-2.5 min-h-11 text-[11px] font-semibold tracking-wider uppercase shrink-0 ${
+            className={`ac-chip rounded-lg px-2.5 py-2 min-h-10 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
               live ? 'active' : ''
             }`}
           >
@@ -128,7 +128,7 @@ export function HUD({
               onChange={(e) => onScrub(Number(e.target.value))}
               className="scrub w-full h-2 appearance-none rounded-full bg-white/10 outline-none"
             />
-            <div className="flex justify-between text-[9px] text-mist/45 font-mono mt-1">
+            <div className="flex justify-between text-[8px] text-mist/45 font-mono mt-0.5">
               <span>−3d</span>
               <span>{scrubLabel}</span>
               <span>+3d</span>

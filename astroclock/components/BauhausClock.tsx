@@ -9,13 +9,17 @@ import {
 interface BauhausClockProps {
   simTime: number;
   visible: boolean;
+  /** When false, ignore taps (mid-flip / sky face). */
+  interactive?: boolean;
   onFlipBack: () => void;
 }
 
 const GOLD = '#D4AF37';
+const GOLD_SOFT = 'rgba(212,175,55,0.55)';
+const GOLD_DIM = 'rgba(212,175,55,0.22)';
 const INK = '#0B0C10';
-const FACE = '#161822';
-const FACE_EDGE = 'rgba(255,255,255,0.08)';
+const FACE = '#12131A';
+const FACE_EDGE = 'rgba(255,255,255,0.07)';
 
 function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined') return false;
@@ -32,7 +36,12 @@ function polar(cx: number, cy: number, r: number, a: number) {
   return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
 }
 
-export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps) {
+export function BauhausClock({
+  simTime,
+  visible,
+  interactive = true,
+  onFlipBack,
+}: BauhausClockProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const simRef = useRef(simTime);
@@ -109,19 +118,36 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
       length: number,
       width: number,
       color: string,
-      rounded = true,
+      tail = 0.14,
     ) => {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(angle);
       ctx.beginPath();
       ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineCap = rounded ? 'round' : 'butt';
+      ctx.lineCap = 'round';
       ctx.lineWidth = width;
-      ctx.moveTo(-length * 0.12, 0);
+      ctx.moveTo(-length * tail, 0);
       ctx.lineTo(length, 0);
       ctx.stroke();
+      ctx.restore();
+    };
+
+    const drawNumeral = (
+      cx: number,
+      cy: number,
+      r: number,
+      a: number,
+      label: string,
+      size: number,
+    ) => {
+      const p = polar(cx, cy, r, a);
+      ctx.save();
+      ctx.fillStyle = GOLD;
+      ctx.font = `600 ${size}px "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, p.x, p.y);
       ctx.restore();
     };
 
@@ -149,11 +175,18 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
 
       /* Soft plate shadow */
       ctx.beginPath();
-      ctx.arc(cx, cy + 3, R * 1.02, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.arc(cx, cy + 4, R * 1.03, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';
       ctx.fill();
 
-      /* Matte charcoal face */
+      /* Outer gold hairline */
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.015, 0, Math.PI * 2);
+      ctx.strokeStyle = GOLD_DIM;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      /* Matte charcoal face — true circle */
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.fillStyle = FACE;
@@ -162,34 +195,29 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      /* Inner ring */
+      /* Inner gold ring */
       ctx.beginPath();
-      ctx.arc(cx, cy, R * 0.92, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(212,175,55,0.18)';
+      ctx.arc(cx, cy, R * 0.905, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(212,175,55,0.2)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      /* Hour marks — Bauhaus geometry */
+      /* Hour marks — XII at 12, VI at 6 (never XII at both) */
+      const numeralSize = Math.max(12, R * 0.095);
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-        if (i === 0 || i === 6) {
-          /* XII at 12 and 6 */
-          const p = polar(cx, cy, R * 0.72, a);
-          ctx.save();
-          ctx.fillStyle = GOLD;
-          ctx.font = `600 ${Math.max(11, R * 0.09)}px ui-sans-serif, system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('XII', p.x, p.y);
-          ctx.restore();
+        if (i === 0) {
+          drawNumeral(cx, cy, R * 0.72, a, 'XII', numeralSize);
+        } else if (i === 6) {
+          drawNumeral(cx, cy, R * 0.72, a, 'VI', numeralSize);
         } else if (i === 3 || i === 9) {
-          const inner = polar(cx, cy, R * 0.78, a);
+          const inner = polar(cx, cy, R * 0.76, a);
           const outer = polar(cx, cy, R * 0.88, a);
           ctx.beginPath();
           ctx.moveTo(inner.x, inner.y);
           ctx.lineTo(outer.x, outer.y);
           ctx.strokeStyle = GOLD;
-          ctx.lineWidth = Math.max(3.5, R * 0.028);
+          ctx.lineWidth = Math.max(3.2, R * 0.026);
           ctx.lineCap = 'butt';
           ctx.stroke();
         } else {
@@ -198,7 +226,7 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
           ctx.beginPath();
           ctx.moveTo(inner.x, inner.y);
           ctx.lineTo(outer.x, outer.y);
-          ctx.strokeStyle = GOLD;
+          ctx.strokeStyle = GOLD_SOFT;
           ctx.lineWidth = Math.max(1.2, R * 0.01);
           ctx.lineCap = 'round';
           ctx.stroke();
@@ -206,8 +234,8 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
       }
 
       /* Day-quality ribbon ring (outside face) */
-      const rRibbon = R * 1.06;
-      const ribbonW = Math.max(4, R * 0.035);
+      const rRibbon = R * 1.055;
+      const ribbonW = Math.max(4.5, R * 0.038);
       const segs = segsRef.current;
       for (const seg of segs) {
         const a0 = hourAngle24(seg.startHour);
@@ -222,9 +250,9 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
 
       /* 6-o'clock pointer (gold triangle into ribbon) */
       {
-        const tip = polar(cx, cy, rRibbon + ribbonW * 0.9, Math.PI / 2);
-        const baseL = polar(cx, cy, rRibbon - ribbonW * 0.2, Math.PI / 2 - 0.06);
-        const baseR = polar(cx, cy, rRibbon - ribbonW * 0.2, Math.PI / 2 + 0.06);
+        const tip = polar(cx, cy, rRibbon + ribbonW * 0.95, Math.PI / 2);
+        const baseL = polar(cx, cy, rRibbon - ribbonW * 0.15, Math.PI / 2 - 0.055);
+        const baseR = polar(cx, cy, rRibbon - ribbonW * 0.15, Math.PI / 2 + 0.055);
         ctx.beginPath();
         ctx.moveTo(tip.x, tip.y);
         ctx.lineTo(baseL.x, baseL.y);
@@ -242,7 +270,7 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
           segs.find((s) => hours >= s.startHour && hours < s.endHour)?.stretch ||
           'mid';
         ctx.beginPath();
-        ctx.arc(bead.x, bead.y, Math.max(4, ribbonW * 0.85), 0, Math.PI * 2);
+        ctx.arc(bead.x, bead.y, Math.max(4, ribbonW * 0.82), 0, Math.PI * 2);
         ctx.fillStyle = STRETCH_COLOR[curStretch];
         ctx.fill();
         ctx.strokeStyle = INK;
@@ -259,17 +287,17 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
         Math.PI / 2;
       const secAngle = (sec / 60) * Math.PI * 2 - Math.PI / 2;
 
-      drawHand(cx, cy, hourAngle, R * 0.48, Math.max(5, R * 0.045), GOLD, true);
-      drawHand(cx, cy, minAngle, R * 0.72, Math.max(1.6, R * 0.012), GOLD, true);
-      drawHand(cx, cy, secAngle, R * 0.78, Math.max(0.8, R * 0.006), GOLD, true);
+      drawHand(cx, cy, hourAngle, R * 0.46, Math.max(5.2, R * 0.048), GOLD, 0.16);
+      drawHand(cx, cy, minAngle, R * 0.7, Math.max(2, R * 0.014), GOLD, 0.14);
+      drawHand(cx, cy, secAngle, R * 0.76, Math.max(0.9, R * 0.007), GOLD_SOFT, 0.18);
 
       /* Hub */
       ctx.beginPath();
-      ctx.arc(cx, cy, Math.max(3.5, R * 0.028), 0, Math.PI * 2);
+      ctx.arc(cx, cy, Math.max(4, R * 0.03), 0, Math.PI * 2);
       ctx.fillStyle = GOLD;
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(cx, cy, Math.max(1.5, R * 0.012), 0, Math.PI * 2);
+      ctx.arc(cx, cy, Math.max(1.6, R * 0.012), 0, Math.PI * 2);
       ctx.fillStyle = INK;
       ctx.fill();
     };
@@ -278,34 +306,40 @@ export function BauhausClock({ simTime, visible, onFlipBack }: BauhausClockProps
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
+  const handleBack = () => {
+    if (!interactive) return;
+    onFlipBack();
+  };
+
   return (
     <div className="absolute inset-0 min-h-0">
       <div className="ac-dial-square absolute inset-0 w-full h-full">
         <div className="ac-dial-square-inner">
           <canvas
             ref={canvasRef}
-            className="touch-none block"
+            className="touch-none block ac-canvas-layer"
             aria-label="Day clock face"
             onPointerDown={(e) => {
               e.preventDefault();
-              onFlipBack();
+              handleBack();
             }}
           />
         </div>
       </div>
       <div
-        className="ac-bauhaus-chrome absolute bottom-0 left-0 right-0 px-3 pb-2 pt-1 text-center pointer-events-none z-[1]"
+        className="ac-bauhaus-chrome absolute bottom-0 left-0 right-0 px-3 pb-3 pt-1 text-center pointer-events-none z-[1]"
         data-ac-bauhaus-chrome
       >
-        <div className="text-[11px] text-mist/70 tracking-wide">{dayLabel}</div>
-        <div className="text-[9px] text-mist/45 mt-0.5 uppercase tracking-wider">
-          Good · Mid · Hard stretches of the day.
+        <div className="text-[11px] text-mist/75 tracking-wide">{dayLabel}</div>
+        <div className="text-[9px] text-mist/42 mt-0.5 uppercase tracking-[0.14em]">
+          Good · Mid · Hard stretches of the day
         </div>
-        <div className="mt-1.5 pointer-events-auto inline-flex">
+        <div className="mt-2 pointer-events-auto inline-flex">
           <button
             type="button"
-            onClick={onFlipBack}
-            className="ac-chip rounded-full px-3 py-1.5 min-h-8 text-[10px] uppercase tracking-wider text-gold"
+            onClick={handleBack}
+            disabled={!interactive}
+            className="ac-chip rounded-full px-3.5 py-1.5 min-h-8 text-[10px] uppercase tracking-wider text-gold border border-gold/35"
           >
             Sky dial
           </button>

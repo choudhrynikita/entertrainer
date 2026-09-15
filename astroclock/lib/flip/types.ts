@@ -4,10 +4,13 @@ export type DialFace =
   | 'flipping-to-bauhaus'
   | 'flipping-to-sky';
 
-export type FlipDirection = 'to-bauhaus' | 'to-sky';
+/** Clean card flip duration (ms). Calm ~0.85s. */
+export const FLIP_MS = 850;
 
-/** Total choreography length (ms). Cap ~1.2–1.6s. */
-export const FLIP_TOTAL_MS = 1600;
-export const FLIP_REDUCED_MS = 280;
-/** Stagger between deck rows / ring layers. */
-export const FLIP_STAGGER_MS = 70;
+export function isFlipping(face: DialFace): boolean {
+  return face === 'flipping-to-bauhaus' || face === 'flipping-to-sky';
+}
+
+export function showGeekyHud(face: DialFace): boolean {
+  return face === 'sky' || face === 'flipping-to-sky';
+}

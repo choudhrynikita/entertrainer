@@ -31,11 +31,12 @@ import { TopBar, type MainView } from './TopBar';
 import { ClockCanvas, type FrameCache } from './ClockCanvas';
 import { BauhausClock } from './BauhausClock';
 import { HUD } from './HUD';
-import type { DialFace } from '@astroclock/lib/flip/types';
 import {
-  runPieceCascade,
-  type CascadeHandles,
-} from '@astroclock/lib/flip/runPieceCascade';
+  FLIP_MS,
+  isFlipping,
+  showGeekyHud,
+  type DialFace,
+} from '@astroclock/lib/flip/types';
 import { ConfigDrawer } from './ConfigDrawer';
 import { PlanetDrawer, type PlanetDetail } from './PlanetDrawer';
 import { TodayPanel } from './TodayPanel';
@@ -57,11 +58,7 @@ export function AstroClockApp() {
   const [youOpen, setYouOpen] = useState(false);
   const [view, setView] = useState<MainView>('dial');
   const [face, setFace] = useState<DialFace>('sky');
-  const cascadeRef = useRef<CascadeHandles | null>(null);
-  const stageRef = useRef<HTMLDivElement | null>(null);
-  const skyLayerRef = useRef<HTMLDivElement | null>(null);
-  const bauhausLayerRef = useRef<HTMLDivElement | null>(null);
-  const hudRef = useRef<HTMLDivElement | null>(null);
+  const flipTimerRef = useRef<number | null>(null);
   const [visible, setVisible] = useState(true);
   const [natalLons, setNatalLons] = useState<LonMap | null>(null);
   const [natalLerp, setNatalLerp] = useState(1);
@@ -119,16 +116,20 @@ export function AstroClockApp() {
 
   useEffect(() => {
     if (view !== 'dial') {
-      cascadeRef.current?.cancel();
-      cascadeRef.current = null;
+      if (flipTimerRef.current != null) {
+        window.clearTimeout(flipTimerRef.current);
+        flipTimerRef.current = null;
+      }
       setFace('sky');
     }
   }, [view]);
 
   useEffect(() => {
     return () => {
-      cascadeRef.current?.cancel();
-      cascadeRef.current = null;
+      if (flipTimerRef.current != null) {
+        window.clearTimeout(flipTimerRef.current);
+        flipTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -137,69 +138,38 @@ export function AstroClockApp() {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }, []);
 
-  const flipToBauhaus = useCallback(() => {
-    if (face !== 'sky') return;
-    cascadeRef.current?.cancel();
-    if (prefersReducedMotion()) {
-      setFace('bauhaus');
-      return;
-    }
-    setFace('flipping-to-bauhaus');
-    /* Two frames + resize so Bauhaus canvas paints before we snapshot backs. */
-    requestAnimationFrame(() => {
+  const runCleanFlip = useCallback(
+    (to: 'bauhaus' | 'sky') => {
+      if (flipTimerRef.current != null) {
+        window.clearTimeout(flipTimerRef.current);
+        flipTimerRef.current = null;
+      }
+      if (prefersReducedMotion()) {
+        setFace(to);
+        return;
+      }
+      setFace(to === 'bauhaus' ? 'flipping-to-bauhaus' : 'flipping-to-sky');
+      /* Nudge canvases after layout so both faces paint before mid-flip. */
       requestAnimationFrame(() => {
         window.dispatchEvent(new Event('resize'));
-        const stage = stageRef.current;
-        if (!stage) {
-          setFace('bauhaus');
-          return;
-        }
-        cascadeRef.current = runPieceCascade({
-          stage,
-          direction: 'to-bauhaus',
-          skyLayer: skyLayerRef.current,
-          bauhausLayer: bauhausLayerRef.current,
-          hudRoot: hudRef.current,
-          onComplete: () => {
-            cascadeRef.current = null;
-            setFace('bauhaus');
-          },
-        });
       });
-    });
-  }, [face, prefersReducedMotion]);
+      flipTimerRef.current = window.setTimeout(() => {
+        flipTimerRef.current = null;
+        setFace(to);
+      }, FLIP_MS);
+    },
+    [prefersReducedMotion],
+  );
+
+  const flipToBauhaus = useCallback(() => {
+    if (face !== 'sky') return;
+    runCleanFlip('bauhaus');
+  }, [face, runCleanFlip]);
 
   const flipToSky = useCallback(() => {
     if (face !== 'bauhaus') return;
-    cascadeRef.current?.cancel();
-    if (prefersReducedMotion()) {
-      setFace('sky');
-      return;
-    }
-    setFace('flipping-to-sky');
-    /* Wait so HUD + sky mount and canvases paint before snapshot/measure. */
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new Event('resize'));
-        const stage = stageRef.current;
-        if (!stage) {
-          setFace('sky');
-          return;
-        }
-        cascadeRef.current = runPieceCascade({
-          stage,
-          direction: 'to-sky',
-          skyLayer: skyLayerRef.current,
-          bauhausLayer: bauhausLayerRef.current,
-          hudRoot: hudRef.current,
-          onComplete: () => {
-            cascadeRef.current = null;
-            setFace('sky');
-          },
-        });
-      });
-    });
-  }, [face, prefersReducedMotion]);
+    runCleanFlip('sky');
+  }, [face, runCleanFlip]);
 
   /* Keep TopBar clocks alive when dial canvas is not painting. */
   useEffect(() => {
@@ -481,20 +451,14 @@ export function AstroClockApp() {
           data-face={face}
         >
           <div
-            ref={stageRef}
-            className={`ac-piece-stage flex-1 min-h-0 relative ${
-              face === 'flipping-to-bauhaus' || face === 'flipping-to-sky'
-                ? 'ac-piece-stage--locked'
-                : ''
+            className={`ac-flip-stage flex-1 min-h-0 relative ${
+              isFlipping(face) ? 'ac-flip-stage--locked' : ''
             }`}
           >
-            {(face === 'sky' ||
-              face === 'flipping-to-bauhaus' ||
-              face === 'flipping-to-sky') && (
+            <div className="ac-flip-card">
               <div
-                ref={skyLayerRef}
-                className="ac-sky-layer absolute inset-0 min-h-0"
-                aria-hidden={face !== 'sky'}
+                className="ac-flip-face ac-flip-face--front"
+                aria-hidden={face === 'bauhaus'}
               >
                 <div className="ac-dial-square absolute inset-0 w-full h-full">
                   <div className="ac-dial-square-inner">
@@ -505,55 +469,60 @@ export function AstroClockApp() {
                       natalLons={currentNatal}
                       natalLerp={natalLerp}
                       selected={selected}
-                      visible={visible && view === 'dial' && face !== 'bauhaus'}
+                      visible={visible && view === 'dial'}
                       onFrame={onFrame}
                       onSelect={handleSelect}
                       onNatalLerpTick={() => {}}
-                      onEmptyTap={flipToBauhaus}
+                      onEmptyTap={face === 'sky' ? flipToBauhaus : undefined}
                     />
                   </div>
                 </div>
               </div>
-            )}
-            {(face === 'bauhaus' ||
-              face === 'flipping-to-bauhaus' ||
-              face === 'flipping-to-sky') && (
-              <div ref={bauhausLayerRef} className="ac-bauhaus-layer absolute inset-0">
+              <div
+                className="ac-flip-face ac-flip-face--back"
+                aria-hidden={face === 'sky'}
+              >
                 <BauhausClock
                   simTime={simTime}
-                  visible={
-                    visible &&
-                    view === 'dial' &&
-                    face !== 'sky'
-                  }
+                  visible={visible && view === 'dial'}
+                  interactive={face === 'bauhaus'}
                   onFlipBack={flipToSky}
                 />
               </div>
-            )}
+            </div>
           </div>
           {showSim && view === 'dial' && face === 'sky' && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in z-10 pointer-events-none">
               SIM <span>{simLabel}</span>
             </div>
           )}
-          {view === 'dial' && face !== 'bauhaus' && (
-            <div ref={hudRef} className="ac-hud-host shrink-0">
-              <HUD
-                maha={maha}
-                antar={antar}
-                tithi={tithi}
-                lagna={lagna}
-                speeds={speeds}
-                selected={selected}
-                hrs={Math.round(hrsDisplay)}
-                live={live}
-                scrubHours={scrubHours}
-                scrubLabel={scrubHint(scrubHours)}
-                face={face}
-                onSelect={handleSelect}
-                onToggleLive={handleToggleLive}
-                onScrub={handleScrub}
-              />
+          {view === 'dial' && (
+            <div
+              className={`ac-hud-host shrink-0 ${
+                showGeekyHud(face) ? 'ac-hud-host--in' : 'ac-hud-host--out'
+              }`}
+              aria-hidden={!showGeekyHud(face)}
+            >
+              {(face === 'sky' ||
+                face === 'flipping-to-sky' ||
+                face === 'flipping-to-bauhaus') && (
+                <HUD
+                  maha={maha}
+                  antar={antar}
+                  tithi={tithi}
+                  lagna={lagna}
+                  speeds={speeds}
+                  selected={selected}
+                  hrs={Math.round(hrsDisplay)}
+                  live={live}
+                  scrubHours={scrubHours}
+                  scrubLabel={scrubHint(scrubHours)}
+                  face={face}
+                  onSelect={handleSelect}
+                  onToggleLive={handleToggleLive}
+                  onScrub={handleScrub}
+                />
+              )}
             </div>
           )}
         </div>

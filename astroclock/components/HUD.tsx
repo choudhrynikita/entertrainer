@@ -43,14 +43,10 @@ export function HUD({
       className="ac-hud shrink-0 border-t border-white/10 ac-glass max-h-[32vh] overflow-y-auto"
       aria-hidden={locked}
       data-face={face}
-      data-ac-hud
     >
       <div className="ac-hud-stage px-2.5 py-1.5 space-y-1.5">
         <div
           className="grid grid-cols-2 gap-1.5 text-[11px]"
-          data-ac-deck-row
-          data-ac-deck-order="0"
-          data-ac-deck-back="Today"
         >
           <div className="ac-chip rounded-lg px-2 py-1.5">
             <div className="text-mist/55 uppercase tracking-wider text-[9px]">
@@ -85,9 +81,6 @@ export function HUD({
         <div
           className="flex gap-1 overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
-          data-ac-deck-row
-          data-ac-deck-order="1"
-          data-ac-deck-back=""
         >
           {GRAHAS.map((g) => {
             const sp = speeds?.[g.id] ?? 0;
@@ -115,9 +108,6 @@ export function HUD({
 
         <div
           className="ac-chip rounded-lg px-2 py-1.5"
-          data-ac-deck-row
-          data-ac-deck-order="2"
-          data-ac-deck-back="Good · Mid · Hard"
         >
           <div className="flex justify-between items-center mb-0.5">
             <span className="text-[9px] uppercase tracking-wider text-mist/55">
@@ -135,9 +125,6 @@ export function HUD({
 
         <div
           className="flex items-center gap-1.5"
-          data-ac-deck-row
-          data-ac-deck-order="3"
-          data-ac-deck-back="Sky dial"
         >
           <button
             type="button"

@@ -143,6 +143,26 @@ html.astroclock-rem {
   color: #E57373;
 }
 
+/* Dial/Today segmented control — solid track + gold selected (not weak gold/20). */
+.astroclock-root .ac-seg {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #161822;
+  border-radius: 9999px;
+  min-height: 2.5rem; /* 40px touch track */
+}
+
+.astroclock-root .ac-seg-active {
+  background: #D4AF37;
+  color: #0B0C10;
+  font-weight: 600;
+}
+
+.astroclock-root .ac-seg-idle {
+  background: transparent;
+  color: rgba(224, 226, 236, 0.55);
+  font-weight: 500;
+}
+
 .astroclock-root .drawer {
   transform: translateY(110%);
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
@@ -223,6 +243,7 @@ html.astroclock-rem {
 .astroclock-root .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
 .astroclock-root .px-2\.5 { padding-left: 0.625rem; padding-right: 0.625rem; }
 .astroclock-root .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.astroclock-root .px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
 .astroclock-root .px-4 { padding-left: 1rem; padding-right: 1rem; }
 .astroclock-root .px-5 { padding-left: 1.25rem; padding-right: 1.25rem; }
 
@@ -306,6 +327,87 @@ html.astroclock-rem {
   font-size: 16px;
 }
 
+
+
+/* Bauhaus / sky dial 3D flip stage */
+.astroclock-root .ac-flip-stage {
+  perspective: 1400px;
+  -webkit-perspective: 1400px;
+}
+
+.astroclock-root .ac-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.astroclock-root .ac-flip-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.astroclock-root .ac-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+
+.astroclock-root .ac-flip-front {
+  z-index: 1;
+}
+
+.astroclock-root .ac-flip-back {
+  transform: rotateY(180deg);
+  background: #0B0C10;
+  z-index: 0;
+}
+
+.astroclock-root .ac-flip-inner.is-flipped .ac-flip-front {
+  pointer-events: none;
+}
+
+.astroclock-root .ac-flip-inner:not(.is-flipped) .ac-flip-back {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .astroclock-root .ac-flip-inner {
+    transition: none;
+    transform: none !important;
+  }
+  .astroclock-root .ac-flip-face {
+    backface-visibility: visible;
+    -webkit-backface-visibility: visible;
+    transition: opacity 0.28s ease;
+  }
+  .astroclock-root .ac-flip-back {
+    transform: none;
+  }
+  .astroclock-root .ac-flip-inner:not(.is-flipped) .ac-flip-back {
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .astroclock-root .ac-flip-inner:not(.is-flipped) .ac-flip-front {
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+  }
+  .astroclock-root .ac-flip-inner.is-flipped .ac-flip-front {
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .astroclock-root .ac-flip-inner.is-flipped .ac-flip-back {
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+  }
+}
 
 /* Nuxt host — fixed full-viewport shell */
 .astroclock-host {

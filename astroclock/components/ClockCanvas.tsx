@@ -54,6 +54,8 @@ interface ClockCanvasProps {
   onFrame: (cache: FrameCache) => void;
   onSelect: (id: GrahaId) => void;
   onNatalLerpTick: (t: number) => void;
+  /** Empty-canvas tap (no planet hit) — used to flip to day clock. */
+  onEmptyTap?: () => void;
 }
 
 function lonToAngle(lon: number): number {
@@ -101,6 +103,7 @@ export function ClockCanvas({
   onFrame,
   onSelect,
   onNatalLerpTick,
+  onEmptyTap,
 }: ClockCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitRef = useRef<Hit[] | null>(null);
@@ -676,6 +679,7 @@ export function ClockCanvas({
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const id = hitTest(e.clientX, e.clientY);
     if (id) onSelect(id);
+    else onEmptyTap?.();
   };
 
   return (
@@ -683,6 +687,7 @@ export function ClockCanvas({
       ref={canvasRef}
       id="clockCanvas"
       className="touch-none block w-full h-full"
+      aria-label="Sky dial — tap empty area to flip"
       onPointerDown={onPointerDown}
     />
   );

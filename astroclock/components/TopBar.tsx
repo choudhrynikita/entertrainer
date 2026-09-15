@@ -32,7 +32,7 @@ export function TopBar({
             AstroClock
           </h1>
           <div
-            className="inline-flex rounded-full ac-chip p-0.5 text-[10px] uppercase tracking-wider"
+            className="inline-flex items-center rounded-full ac-seg p-0.5 text-[10px] uppercase tracking-wider min-h-10"
             role="tablist"
             aria-label="Main view"
           >
@@ -41,8 +41,8 @@ export function TopBar({
               role="tab"
               aria-selected={view === 'dial'}
               onClick={() => onViewChange('dial')}
-              className={`rounded-full px-3 py-1.5 min-h-9 transition ${
-                view === 'dial' ? 'bg-gold/20 text-gold' : 'text-mist/50'
+              className={`rounded-full px-3.5 min-h-9 transition ${
+                view === 'dial' ? 'ac-seg-active' : 'ac-seg-idle'
               }`}
             >
               Dial
@@ -52,8 +52,8 @@ export function TopBar({
               role="tab"
               aria-selected={view === 'today'}
               onClick={() => onViewChange('today')}
-              className={`rounded-full px-3 py-1.5 min-h-9 transition ${
-                view === 'today' ? 'bg-gold/20 text-gold' : 'text-mist/50'
+              className={`rounded-full px-3.5 min-h-9 transition ${
+                view === 'today' ? 'ac-seg-active' : 'ac-seg-idle'
               }`}
             >
               Today

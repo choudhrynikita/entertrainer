@@ -31,6 +31,11 @@ import { TopBar, type MainView } from './TopBar';
 import { ClockCanvas, type FrameCache } from './ClockCanvas';
 import { BauhausClock } from './BauhausClock';
 import { HUD } from './HUD';
+import type { DialFace } from '@astroclock/lib/flip/types';
+import {
+  runPieceCascade,
+  type CascadeHandles,
+} from '@astroclock/lib/flip/runPieceCascade';
 import { ConfigDrawer } from './ConfigDrawer';
 import { PlanetDrawer, type PlanetDetail } from './PlanetDrawer';
 import { TodayPanel } from './TodayPanel';
@@ -51,7 +56,12 @@ export function AstroClockApp() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [youOpen, setYouOpen] = useState(false);
   const [view, setView] = useState<MainView>('dial');
-  const [dialFlipped, setDialFlipped] = useState(false);
+  const [face, setFace] = useState<DialFace>('sky');
+  const cascadeRef = useRef<CascadeHandles | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const skyLayerRef = useRef<HTMLDivElement | null>(null);
+  const bauhausLayerRef = useRef<HTMLDivElement | null>(null);
+  const hudRef = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(true);
   const [natalLons, setNatalLons] = useState<LonMap | null>(null);
   const [natalLerp, setNatalLerp] = useState(1);
@@ -108,8 +118,88 @@ export function AstroClockApp() {
   }, []);
 
   useEffect(() => {
-    if (view !== 'dial') setDialFlipped(false);
+    if (view !== 'dial') {
+      cascadeRef.current?.cancel();
+      cascadeRef.current = null;
+      setFace('sky');
+    }
   }, [view]);
+
+  useEffect(() => {
+    return () => {
+      cascadeRef.current?.cancel();
+      cascadeRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const root = stageRef.current?.parentElement ?? null;
+    hudRef.current = root?.querySelector('[data-ac-hud]') as HTMLElement | null;
+  });
+
+  const prefersReducedMotion = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  const flipToBauhaus = useCallback(() => {
+    if (face !== 'sky') return;
+    cascadeRef.current?.cancel();
+    if (prefersReducedMotion()) {
+      setFace('bauhaus');
+      return;
+    }
+    setFace('flipping-to-bauhaus');
+    requestAnimationFrame(() => {
+      const stage = stageRef.current;
+      if (!stage) {
+        setFace('bauhaus');
+        return;
+      }
+      cascadeRef.current = runPieceCascade({
+        stage,
+        direction: 'to-bauhaus',
+        skyLayer: skyLayerRef.current,
+        bauhausLayer: bauhausLayerRef.current,
+        hudRoot: hudRef.current,
+        onComplete: () => {
+          cascadeRef.current = null;
+          setFace('bauhaus');
+        },
+      });
+    });
+  }, [face, prefersReducedMotion]);
+
+  const flipToSky = useCallback(() => {
+    if (face !== 'bauhaus') return;
+    cascadeRef.current?.cancel();
+    if (prefersReducedMotion()) {
+      setFace('sky');
+      return;
+    }
+    setFace('flipping-to-sky');
+    /* Wait a frame so HUD mounts and we can measure actors. */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const stage = stageRef.current;
+        if (!stage) {
+          setFace('sky');
+          return;
+        }
+        cascadeRef.current = runPieceCascade({
+          stage,
+          direction: 'to-sky',
+          skyLayer: skyLayerRef.current,
+          bauhausLayer: bauhausLayerRef.current,
+          hudRoot: hudRef.current,
+          onComplete: () => {
+            cascadeRef.current = null;
+            setFace('sky');
+          },
+        });
+      });
+    });
+  }, [face, prefersReducedMotion]);
 
   /* Keep TopBar clocks alive when dial canvas is not painting. */
   useEffect(() => {
@@ -130,7 +220,7 @@ export function AstroClockApp() {
     if (view !== 'dial') return;
     const id = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
     return () => cancelAnimationFrame(id);
-  }, [view, dialFlipped]);
+  }, [view, face]);
 
   useEffect(() => {
     if (!live || !visible) return;
@@ -383,17 +473,29 @@ export function AstroClockApp() {
         onOpenConfig={openConfig}
       />
 
-      <main className="flex-1 relative min-h-0">
+      <main className="flex-1 relative min-h-0 flex flex-col">
         {/* display:none when off-dial — opacity-0 can leave GPU ghosts on Safari. */}
         <div
-          className={`absolute inset-0 ${view === 'dial' ? '' : 'hidden'}`}
+          className={`flex-1 min-h-0 relative flex flex-col ${view === 'dial' ? '' : 'hidden'}`}
           aria-hidden={view !== 'dial'}
+          data-face={face}
         >
-          <div className="ac-flip-stage absolute inset-0">
-            <div
-              className={`ac-flip-inner ${dialFlipped ? 'is-flipped' : ''}`}
-            >
-              <div className="ac-flip-face ac-flip-front">
+          <div
+            ref={stageRef}
+            className={`ac-piece-stage flex-1 min-h-0 relative ${
+              face === 'flipping-to-bauhaus' || face === 'flipping-to-sky'
+                ? 'ac-piece-stage--locked'
+                : ''
+            }`}
+          >
+            {(face === 'sky' ||
+              face === 'flipping-to-bauhaus' ||
+              face === 'flipping-to-sky') && (
+              <div
+                ref={skyLayerRef}
+                className="ac-sky-layer absolute inset-0"
+                aria-hidden={face !== 'sky'}
+              >
                 <ClockCanvas
                   simTime={simTime}
                   lat={+birth.lat}
@@ -401,26 +503,52 @@ export function AstroClockApp() {
                   natalLons={currentNatal}
                   natalLerp={natalLerp}
                   selected={selected}
-                  visible={visible && view === 'dial'}
+                  visible={visible && view === 'dial' && face !== 'bauhaus'}
                   onFrame={onFrame}
                   onSelect={handleSelect}
                   onNatalLerpTick={() => {}}
-                  onEmptyTap={() => setDialFlipped(true)}
+                  onEmptyTap={flipToBauhaus}
                 />
               </div>
-              <div className="ac-flip-face ac-flip-back">
+            )}
+            {(face === 'bauhaus' ||
+              face === 'flipping-to-bauhaus' ||
+              face === 'flipping-to-sky') && (
+              <div ref={bauhausLayerRef} className="ac-bauhaus-layer absolute inset-0">
                 <BauhausClock
                   simTime={simTime}
-                  visible={visible && view === 'dial' && dialFlipped}
-                  onFlipBack={() => setDialFlipped(false)}
+                  visible={
+                    visible &&
+                    view === 'dial' &&
+                    face !== 'sky'
+                  }
+                  onFlipBack={flipToSky}
                 />
               </div>
-            </div>
+            )}
           </div>
-          {showSim && view === 'dial' && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in z-10">
+          {showSim && view === 'dial' && face === 'sky' && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in z-10 pointer-events-none">
               SIM <span>{simLabel}</span>
             </div>
+          )}
+          {view === 'dial' && face !== 'bauhaus' && (
+            <HUD
+              maha={maha}
+              antar={antar}
+              tithi={tithi}
+              lagna={lagna}
+              speeds={speeds}
+              selected={selected}
+              hrs={Math.round(hrsDisplay)}
+              live={live}
+              scrubHours={scrubHours}
+              scrubLabel={scrubHint(scrubHours)}
+              face={face}
+              onSelect={handleSelect}
+              onToggleLive={handleToggleLive}
+              onScrub={handleScrub}
+            />
           )}
         </div>
         {view === 'today' && (
@@ -429,24 +557,6 @@ export function AstroClockApp() {
           </div>
         )}
       </main>
-
-      {view === 'dial' && (
-        <HUD
-          maha={maha}
-          antar={antar}
-          tithi={tithi}
-          lagna={lagna}
-          speeds={speeds}
-          selected={selected}
-          hrs={Math.round(hrsDisplay)}
-          live={live}
-          scrubHours={scrubHours}
-          scrubLabel={scrubHint(scrubHours)}
-          onSelect={handleSelect}
-          onToggleLive={handleToggleLive}
-          onScrub={handleScrub}
-        />
-      )}
 
       {view === 'today' && (
         <footer className="ac-hud shrink-0 border-t border-white/10 ac-glass px-3 py-2">

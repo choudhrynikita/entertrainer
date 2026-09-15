@@ -70,7 +70,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
 
       <p className="text-[10px] text-mist/40 -mt-1 px-0.5">{climateNote}</p>
 
-      <article className="ac-chip rounded-xl px-3 py-3 space-y-2 border border-gold/20">
+      <article className="ac-card px-3 py-3 space-y-2 border border-gold/20">
         <h3 className="text-[11px] font-semibold tracking-wide text-gold">
           Today’s summary
         </h3>
@@ -81,7 +81,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
         ))}
       </article>
 
-      <article className="ac-chip rounded-xl px-3 py-3 space-y-2 border border-jade/25">
+      <article className="ac-card px-3 py-3 space-y-2 border border-jade/25">
         <h3 className="text-[11px] font-semibold tracking-wide text-jade">
           {dayAdvice.title}
         </h3>
@@ -112,7 +112,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
           Live changes
         </h3>
 
-        <div className="ac-chip rounded-xl px-3 py-2.5 space-y-1">
+        <div className="ac-card px-3 py-2.5 space-y-1">
           <div className="flex justify-between gap-2 text-[10px]">
             <span className="text-mist/50">Period</span>
             <span className="text-gold font-medium">{dasha.maha}</span>
@@ -131,7 +131,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
         <button
           type="button"
           onClick={() => onSelectGraha?.('Moon')}
-          className="ac-chip rounded-xl px-3 py-2.5 space-y-1.5 w-full text-left"
+          className="ac-card px-3 py-2.5 space-y-1.5 w-full text-left"
         >
           <div className="flex justify-between items-baseline gap-2">
             <span className="text-[9px] uppercase tracking-wider text-mist/50">
@@ -161,7 +161,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
           </div>
         </button>
 
-        <div className="ac-chip rounded-xl px-3 py-2.5 space-y-1">
+        <div className="ac-card px-3 py-2.5 space-y-1">
           <div className="flex justify-between items-baseline gap-2">
             <span className="text-[9px] uppercase tracking-wider text-mist/50">
               Rising now
@@ -180,7 +180,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
           </div>
         </div>
 
-        <div className="ac-chip rounded-xl px-3 py-2.5">
+        <div className="ac-card px-3 py-2.5">
           <div className="text-[9px] uppercase tracking-wider text-mist/50 mb-1.5">
             Retrograde today
           </div>
@@ -202,7 +202,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
           )}
         </div>
 
-        <div className="ac-chip rounded-xl px-3 py-2.5 space-y-1.5">
+        <div className="ac-card px-3 py-2.5 space-y-1.5">
           <div className="text-[9px] uppercase tracking-wider text-mist/50">
             Aspects forming
           </div>
@@ -234,7 +234,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
           )}
         </div>
 
-        <div className="ac-chip rounded-xl px-3 py-2.5">
+        <div className="ac-card px-3 py-2.5">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[9px] uppercase tracking-wider text-mist/50">
               Harmonic Resonance
@@ -263,7 +263,7 @@ export function TodayPanel({ insights, onSelectGraha }: TodayPanelProps) {
             type="button"
             disabled={!c.graha || !onSelectGraha}
             onClick={() => c.graha && onSelectGraha?.(c.graha)}
-            className={`ac-chip rounded-xl px-3 py-2.5 border w-full text-left ${TONE_BORDER[c.tone] || 'border-white/10'} ${c.graha ? 'hover:bg-white/5' : ''}`}
+            className={`ac-card px-3 py-2.5 border w-full text-left ${TONE_BORDER[c.tone] || 'border-white/10'} ${c.graha ? 'hover:bg-white/5' : ''}`}
           >
             <h4 className="text-[11px] font-medium text-mist">{c.title}</h4>
             <p className="text-[10px] text-mist/60 leading-[1.6] mt-1">

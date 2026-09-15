@@ -118,6 +118,13 @@ export function AstroClockApp() {
     return () => window.clearInterval(id);
   }, [view, simTime, live, visible]);
 
+  /* After display:none → block, force layout so canvas recovers size. */
+  useEffect(() => {
+    if (view !== 'dial') return;
+    const id = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    return () => cancelAnimationFrame(id);
+  }, [view]);
+
   useEffect(() => {
     if (!live || !visible) return;
     let id = 0;
@@ -348,7 +355,7 @@ export function AstroClockApp() {
 
   if (!hydrated) {
     return (
-      <div className="astroclock-root max-w-md mx-auto h-dvh bg-ink text-mist flex items-center justify-center">
+      <div className="astroclock-root bg-ink text-mist flex items-center justify-center">
         <div className="text-gold/70 text-xs tracking-[0.3em] uppercase">
           AstroClock
         </div>
@@ -357,7 +364,7 @@ export function AstroClockApp() {
   }
 
   return (
-    <div className="astroclock-root max-w-md mx-auto h-dvh bg-ink text-mist overflow-hidden flex flex-col relative">
+    <div className="astroclock-root bg-ink text-mist">
       <TopBar
         utc={utc}
         local={local}
@@ -370,9 +377,9 @@ export function AstroClockApp() {
       />
 
       <main className="flex-1 relative min-h-0">
-        {/* Keep canvas mounted (sized) but do not paint when off-dial — avoids circle bleed. */}
+        {/* display:none when off-dial — opacity-0 can leave GPU ghosts on Safari. */}
         <div
-          className={`absolute inset-0 ${view === 'dial' ? '' : 'opacity-0 pointer-events-none'}`}
+          className={`absolute inset-0 ${view === 'dial' ? '' : 'hidden'}`}
           aria-hidden={view !== 'dial'}
         >
           <ClockCanvas
@@ -394,7 +401,7 @@ export function AstroClockApp() {
           )}
         </div>
         {view === 'today' && (
-          <div className="absolute inset-0 z-10 today-surface overflow-hidden">
+          <div className="today-surface overflow-hidden">
             <TodayPanel insights={todayInsights} onSelectGraha={handleSelect} />
           </div>
         )}
@@ -419,7 +426,7 @@ export function AstroClockApp() {
       )}
 
       {view === 'today' && (
-        <footer className="shrink-0 border-t border-white/10 ac-glass px-3 py-2">
+        <footer className="ac-hud shrink-0 border-t border-white/10 ac-glass px-3 py-2">
           <div className="flex items-center gap-2">
             <button
               type="button"

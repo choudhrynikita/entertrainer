@@ -46,13 +46,13 @@ export function HUD({
       data-ac-hud
     >
       <div className="ac-hud-stage px-2.5 py-1.5 space-y-1.5">
-        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-          <div
-            className="ac-chip rounded-lg px-2 py-1.5"
-            data-ac-actor
-            data-ac-order="0"
-            data-piece="maha"
-          >
+        <div
+          className="grid grid-cols-2 gap-1.5 text-[11px]"
+          data-ac-deck-row
+          data-ac-deck-order="0"
+          data-ac-deck-back="Today"
+        >
+          <div className="ac-chip rounded-lg px-2 py-1.5">
             <div className="text-mist/55 uppercase tracking-wider text-[9px]">
               Mahadasha
             </div>
@@ -66,12 +66,7 @@ export function HUD({
               {antar}
             </div>
           </div>
-          <div
-            className="ac-chip rounded-lg px-2 py-1.5"
-            data-ac-actor
-            data-ac-order="1"
-            data-piece="tithi"
-          >
+          <div className="ac-chip rounded-lg px-2 py-1.5">
             <div className="text-mist/55 uppercase tracking-wider text-[9px]">
               Tithi
             </div>
@@ -90,8 +85,11 @@ export function HUD({
         <div
           className="flex gap-1 overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
+          data-ac-deck-row
+          data-ac-deck-order="1"
+          data-ac-deck-back=""
         >
-          {GRAHAS.map((g, i) => {
+          {GRAHAS.map((g) => {
             const sp = speeds?.[g.id] ?? 0;
             const active = selected === g.id;
             const retro = sp < -0.01;
@@ -101,9 +99,6 @@ export function HUD({
                 type="button"
                 onClick={() => onSelect(g.id)}
                 disabled={locked}
-                data-ac-actor
-                data-ac-order={String(2 + i)}
-                data-piece={`graha-${g.id}`}
                 className={`ac-chip graha-chip shrink-0 rounded-full px-2 py-1 min-h-8 text-[10px] font-medium flex items-center gap-0.5 ${
                   active ? 'active' : ''
                 } ${retro ? 'retro' : ''}`}
@@ -120,9 +115,9 @@ export function HUD({
 
         <div
           className="ac-chip rounded-lg px-2 py-1.5"
-          data-ac-actor
-          data-ac-order="9"
-          data-piece="harmonic"
+          data-ac-deck-row
+          data-ac-deck-order="2"
+          data-ac-deck-back="Good · Mid · Hard"
         >
           <div className="flex justify-between items-center mb-0.5">
             <span className="text-[9px] uppercase tracking-wider text-mist/55">
@@ -138,26 +133,23 @@ export function HUD({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div
+          className="flex items-center gap-1.5"
+          data-ac-deck-row
+          data-ac-deck-order="3"
+          data-ac-deck-back="Sky dial"
+        >
           <button
             type="button"
             onClick={onToggleLive}
             disabled={locked}
-            data-ac-actor
-            data-ac-order="10"
-            data-piece="live"
             className={`ac-chip rounded-lg px-2.5 py-2 min-h-10 text-[10px] font-semibold tracking-wider uppercase shrink-0 ${
               live ? 'active' : ''
             }`}
           >
             Live Tick
           </button>
-          <div
-            className="flex-1 min-w-0"
-            data-ac-actor
-            data-ac-order="11"
-            data-piece="scrub"
-          >
+          <div className="flex-1 min-w-0">
             <input
               type="range"
               min={-72}

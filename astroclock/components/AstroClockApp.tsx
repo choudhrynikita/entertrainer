@@ -13,6 +13,7 @@ import {
   computeTithi,
   computeTodayInsights,
   computeNatalProfile,
+  stretchFromClimate,
   harmonicScore,
   julianDay,
   lonMapFromPlanets,
@@ -33,7 +34,7 @@ import { HUD } from './HUD';
 import { ConfigDrawer } from './ConfigDrawer';
 import { PlanetDrawer, type PlanetDetail } from './PlanetDrawer';
 import { TodayPanel } from './TodayPanel';
-import { ProfileDrawer } from './ProfileDrawer';
+import { YouDrawer } from './YouDrawer';
 import { WelcomeTour } from './WelcomeTour';
 
 const LERP_MS = 700;
@@ -48,7 +49,7 @@ export function AstroClockApp() {
   const [selected, setSelected] = useState<GrahaId | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [youOpen, setYouOpen] = useState(false);
   const [view, setView] = useState<MainView>('dial');
   const [dialFlipped, setDialFlipped] = useState(false);
   const [visible, setVisible] = useState(true);
@@ -352,11 +353,11 @@ export function AstroClockApp() {
     setDraft(demo);
     clearConfig();
     recomputeNatal(demo, true);
-    setProfileOpen(false);
+    setYouOpen(false);
   };
 
-  const handleOpenProfile = () => {
-    setProfileOpen(true);
+  const handleOpenYou = () => {
+    setYouOpen(true);
   };
 
   if (!hydrated) {
@@ -377,8 +378,8 @@ export function AstroClockApp() {
         placeLabel={placeLabel}
         view={view}
         onViewChange={setView}
-        profileEnabled={true}
-        onOpenProfile={handleOpenProfile}
+        youEnabled={true}
+        onOpenYou={handleOpenYou}
         onOpenConfig={openConfig}
       />
 
@@ -500,13 +501,16 @@ export function AstroClockApp() {
       <WelcomeTour
         onOpenConfig={() => setConfigOpen(true)}
         onGoToday={() => setView('today')}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenYou={() => setYouOpen(true)}
       />
-      <ProfileDrawer
-        open={profileOpen}
+      <YouDrawer
+        open={youOpen}
+        birth={birth}
         profile={natalProfile}
         isDemo={!!birth.isDemo}
-        onClose={() => setProfileOpen(false)}
+        climate={todayInsights.climate}
+        stretch={stretchFromClimate(todayInsights.climate)}
+        onClose={() => setYouOpen(false)}
         onOpenConfig={openConfig}
       />
     </div>

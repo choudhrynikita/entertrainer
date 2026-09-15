@@ -9,8 +9,8 @@ interface TopBarProps {
   placeLabel?: string;
   view: MainView;
   onViewChange: (v: MainView) => void;
-  profileEnabled: boolean;
-  onOpenProfile: () => void;
+  youEnabled: boolean;
+  onOpenYou: () => void;
   onOpenConfig: () => void;
 }
 
@@ -20,8 +20,8 @@ export function TopBar({
   placeLabel,
   view,
   onViewChange,
-  profileEnabled,
-  onOpenProfile,
+  youEnabled,
+  onOpenYou,
   onOpenConfig,
 }: TopBarProps) {
   return (
@@ -77,22 +77,22 @@ export function TopBar({
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
-          onClick={onOpenProfile}
-          disabled={!profileEnabled}
+          onClick={onOpenYou}
+          disabled={!youEnabled}
           title={
-            profileEnabled
-              ? 'Natal profile'
-              : 'Save birth details to unlock Profile'
+            youEnabled
+              ? 'You — lived time and day note'
+              : 'Save birth details to unlock You'
           }
           className={`ac-glass ac-touch rounded-xl px-2.5 py-2 active:scale-95 transition flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider ${
-            profileEnabled
+            youEnabled
               ? 'text-gold'
               : 'text-mist/30 opacity-60 cursor-not-allowed'
           }`}
-          aria-label="Profile"
+          aria-label="You"
         >
           <UserRound className="w-4 h-4" />
-          <span>Profile</span>
+          <span>You</span>
         </button>
         <button
           type="button"

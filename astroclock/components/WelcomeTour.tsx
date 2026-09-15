@@ -16,7 +16,7 @@ Nothing beats your own will. And will may move the stars if they come across you
   {
     id: 'setup',
     title: 'Set up your details',
-    body: 'Open Config (gear). Enter name, birth date/time (UTC), and place. Save to unlock Profile and personal day notes.',
+    body: 'Open Config (gear). Enter name, birth date/time (UTC), and place. Save to unlock You and personal day notes.',
   },
   {
     id: 'dial',
@@ -29,16 +29,16 @@ Nothing beats your own will. And will may move the stars if they come across you
     body: 'Today gives a plain-English sketch of the current sky: what’s loud, how it shows up, and what to do or avoid.',
   },
   {
-    id: 'profile',
-    title: 'Profile',
-    body: 'Profile shows how you come across, feel, and drive — from rising, Moon, Sun, and period lords. Use it as a map, not as fate.',
+    id: 'you',
+    title: 'You',
+    body: 'You shows time lived since birth, a short note for how today might feel, and optional chart insights — from rising, Moon, Sun, and period lords. Use it as a map, not as fate.',
   },
 ] as const;
 
 interface WelcomeTourProps {
   onOpenConfig?: () => void;
   onGoToday?: () => void;
-  onOpenProfile?: () => void;
+  onOpenYou?: () => void;
   /** Force show (tests / replay) */
   force?: boolean;
 }
@@ -46,7 +46,7 @@ interface WelcomeTourProps {
 export function WelcomeTour({
   onOpenConfig,
   onGoToday,
-  onOpenProfile,
+  onOpenYou,
   force,
 }: WelcomeTourProps) {
   const [open, setOpen] = useState(false);
@@ -79,7 +79,7 @@ export function WelcomeTour({
     const s = STEPS[step];
     if (s.id === 'setup') onOpenConfig?.();
     if (s.id === 'today') onGoToday?.();
-    if (s.id === 'profile') onOpenProfile?.();
+    if (s.id === 'you') onOpenYou?.();
     if (step >= STEPS.length - 1) finish();
     else setStep((x) => x + 1);
   }

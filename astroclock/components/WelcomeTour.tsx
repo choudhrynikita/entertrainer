@@ -89,13 +89,13 @@ export function WelcomeTour({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 bg-black/55 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 ac-scrim-strong backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Welcome tour"
       data-testid="welcome-tour"
     >
-      <div className="w-full max-w-md glass rounded-2xl border border-white/15 shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md glass panel-solid rounded-2xl border border-white/15 shadow-2xl overflow-hidden">
         <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-2">
           <div className="text-[10px] uppercase tracking-[0.25em] text-gold/80">
             {step === 0 ? 'Welcome' : `Tour ${step}/${STEPS.length - 1}`}
@@ -103,7 +103,7 @@ export function WelcomeTour({
           <button
             type="button"
             onClick={finish}
-            className="text-[11px] text-mist/50 hover:text-mist px-2 py-1 rounded-lg"
+            className="text-[13px] text-mist/70 hover:text-mist px-3 py-2 rounded-lg min-h-11"
             data-testid="tour-skip"
           >
             Skip
@@ -136,7 +136,7 @@ export function WelcomeTour({
             <button
               type="button"
               onClick={next}
-              className="rounded-xl bg-gold/20 text-gold px-4 py-2 text-[12px] font-medium active:scale-95"
+              className="rounded-xl bg-gold/25 text-gold px-5 py-2.5 text-[13px] font-semibold active:scale-95 min-h-11"
               data-testid="tour-next"
             >
               {step >= STEPS.length - 1 ? 'Done' : 'Next'}

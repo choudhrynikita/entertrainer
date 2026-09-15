@@ -104,6 +104,20 @@ export function AstroClockApp() {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
+  /* Keep TopBar clocks alive when dial canvas is not painting. */
+  useEffect(() => {
+    if (view === 'dial') return;
+    const tick = () => {
+      const d = new Date(simTime);
+      setUtc(formatMsClock(d, true));
+      setLocal(formatMsClock(d, false));
+    };
+    tick();
+    if (!live || !visible) return;
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [view, simTime, live, visible]);
+
   useEffect(() => {
     if (!live || !visible) return;
     let id = 0;
@@ -356,9 +370,9 @@ export function AstroClockApp() {
       />
 
       <main className="flex-1 relative min-h-0">
-        {/* Keep canvas mounted so HUD clocks / frame cache stay live */}
+        {/* Keep canvas mounted (sized) but do not paint when off-dial — avoids circle bleed. */}
         <div
-          className={`absolute inset-0 ${view === 'dial' ? '' : 'invisible pointer-events-none'}`}
+          className={`absolute inset-0 ${view === 'dial' ? '' : 'opacity-0 pointer-events-none'}`}
           aria-hidden={view !== 'dial'}
         >
           <ClockCanvas
@@ -368,19 +382,19 @@ export function AstroClockApp() {
             natalLons={currentNatal}
             natalLerp={natalLerp}
             selected={selected}
-            visible={visible}
+            visible={visible && view === 'dial'}
             onFrame={onFrame}
             onSelect={handleSelect}
             onNatalLerpTick={() => {}}
           />
           {showSim && view === 'dial' && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 ac-glass rounded-full px-3 py-1 text-[10px] font-mono text-gold/90 fade-in">
               SIM <span>{simLabel}</span>
             </div>
           )}
         </div>
         {view === 'today' && (
-          <div className="absolute inset-0 bg-ink overflow-hidden">
+          <div className="absolute inset-0 z-10 today-surface overflow-hidden">
             <TodayPanel insights={todayInsights} onSelectGraha={handleSelect} />
           </div>
         )}
@@ -405,7 +419,7 @@ export function AstroClockApp() {
       )}
 
       {view === 'today' && (
-        <footer className="shrink-0 border-t border-white/10 glass px-3 py-2">
+        <footer className="shrink-0 border-t border-white/10 ac-glass px-3 py-2">
           <div className="flex items-center gap-2">
             <button
               type="button"

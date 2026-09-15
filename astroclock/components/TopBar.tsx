@@ -84,7 +84,7 @@ export function TopBar({
               ? 'Natal profile'
               : 'Save birth details to unlock Profile'
           }
-          className={`glass rounded-xl px-2.5 py-2 active:scale-95 transition flex items-center gap-1 text-[9px] uppercase tracking-wider ${
+          className={`ac-glass rounded-xl px-2.5 py-2 active:scale-95 transition flex items-center gap-1 text-[9px] uppercase tracking-wider ${
             profileEnabled
               ? 'text-gold'
               : 'text-mist/30 opacity-60 cursor-not-allowed'
@@ -97,7 +97,7 @@ export function TopBar({
         <button
           type="button"
           onClick={onOpenConfig}
-          className="glass rounded-xl p-2.5 active:scale-95 transition"
+          className="ac-glass rounded-xl p-2.5 active:scale-95 transition"
           aria-label="Config"
         >
           <Settings2 className="w-5 h-5 text-gold" />

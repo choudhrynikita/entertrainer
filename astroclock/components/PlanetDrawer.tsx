@@ -25,15 +25,15 @@ export function PlanetDrawer({ open, detail, onClose }: PlanetDrawerProps) {
   return (
     <>
       <div
-        className={`absolute inset-0 bg-black/50 z-40 transition-opacity ${
+        className={`absolute inset-0 ac-scrim z-40 transition-opacity ${
           open ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
         aria-hidden={!open}
       />
       <div
-        className={`drawer absolute bottom-0 left-0 right-0 z-50 glass rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto overscroll-contain ${
-          open ? 'open' : ''
+        className={`drawer absolute bottom-0 left-0 right-0 z-50 glass panel-solid rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto overscroll-contain ${
+          open ? 'open' : 'pointer-events-none'
         }`}
       >
         <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-3" />

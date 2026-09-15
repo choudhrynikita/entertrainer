@@ -128,20 +128,20 @@ export function ConfigDrawer({
   return (
     <>
       <div
-        className={`absolute inset-0 bg-black/50 z-40 transition-opacity ${
+        className={`absolute inset-0 ac-scrim z-40 transition-opacity ${
           open ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
         aria-hidden={!open}
       />
       <aside
-        className={`config-drawer absolute top-0 right-0 bottom-0 w-[88%] max-w-sm z-50 glass overflow-y-auto ${
-          open ? 'open' : ''
+        className={`config-drawer absolute top-0 right-0 bottom-0 w-[88%] max-w-sm z-50 glass panel-solid overflow-y-auto ${
+          open ? 'open' : 'pointer-events-none'
         }`}
       >
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-3.5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-widest uppercase text-gold">
+            <h2 className="text-[15px] font-semibold tracking-widest uppercase text-gold">
               Identity
             </h2>
             <button
@@ -154,67 +154,67 @@ export function ConfigDrawer({
             </button>
           </div>
 
-          <label className="block text-xs space-y-1">
-            <span className="text-mist/60">Name</span>
+          <label className="block text-sm space-y-1.5">
+            <span className="text-mist/70 text-[13px]">Name</span>
             <input
               type="text"
               placeholder="Your name"
               maxLength={40}
               value={draft.name}
               onChange={(e) => set('name', e.target.value)}
-              className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-gold/50"
+              className="w-full rounded-lg bg-black/55 border border-white/12 px-3 py-2.5 text-sm outline-none focus:border-gold/50"
             />
           </label>
 
-          <label className="block text-xs space-y-1">
-            <span className="text-mist/60">Birth date</span>
+          <label className="block text-sm space-y-1.5">
+            <span className="text-mist/70 text-[13px]">Birth date</span>
             <input
               type="date"
               value={draft.date}
               onChange={(e) => set('date', e.target.value)}
-              className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
+              className="w-full rounded-lg bg-black/55 border border-white/12 px-3 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
             />
           </label>
 
           <div className="grid grid-cols-3 gap-2">
-            <label className="block text-xs space-y-1">
-              <span className="text-mist/60">Hour</span>
+            <label className="block text-sm space-y-1.5">
+              <span className="text-mist/70 text-[13px]">Hour</span>
               <input
                 type="number"
                 min={0}
                 max={23}
                 value={draft.h}
                 onChange={(e) => set('h', Number(e.target.value))}
-                className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
+                className="w-full rounded-lg bg-black/55 border border-white/12 px-2 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
               />
             </label>
-            <label className="block text-xs space-y-1">
-              <span className="text-mist/60">Min</span>
+            <label className="block text-sm space-y-1.5">
+              <span className="text-mist/70 text-[13px]">Min</span>
               <input
                 type="number"
                 min={0}
                 max={59}
                 value={draft.m}
                 onChange={(e) => set('m', Number(e.target.value))}
-                className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
+                className="w-full rounded-lg bg-black/55 border border-white/12 px-2 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
               />
             </label>
-            <label className="block text-xs space-y-1">
-              <span className="text-mist/60">Sec</span>
+            <label className="block text-sm space-y-1.5">
+              <span className="text-mist/70 text-[13px]">Sec</span>
               <input
                 type="number"
                 min={0}
                 max={59}
                 value={draft.s}
                 onChange={(e) => set('s', Number(e.target.value))}
-                className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
+                className="w-full rounded-lg bg-black/55 border border-white/12 px-2 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
               />
             </label>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-mist/60">Birth place</span>
+              <span className="text-[13px] text-mist/70">Birth place</span>
               {placeShown && (
                 <span className="text-[10px] text-gold/80 flex items-center gap-1 max-w-[60%] truncate">
                   <MapPin className="w-3 h-3 shrink-0" />
@@ -230,7 +230,7 @@ export function ConfigDrawer({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoComplete="off"
-                className="w-full rounded-lg bg-black/40 border border-white/10 pl-9 pr-9 py-2.5 text-sm outline-none focus:border-gold/50"
+                className="w-full rounded-lg bg-black/55 border border-white/12 pl-9 pr-9 py-2.5 text-sm outline-none focus:border-gold/50"
               />
               {searching && (
                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gold animate-spin" />
@@ -297,8 +297,8 @@ export function ConfigDrawer({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="block text-xs space-y-1">
-              <span className="text-mist/60">Latitude°</span>
+            <label className="block text-sm space-y-1.5">
+              <span className="text-mist/70 text-[13px]">Latitude°</span>
               <input
                 type="number"
                 step="0.0001"
@@ -311,11 +311,11 @@ export function ConfigDrawer({
                       draft.preset === 'search' ? 'search' : 'manual',
                   })
                 }
-                className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
+                className="w-full rounded-lg bg-black/55 border border-white/12 px-3 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
               />
             </label>
-            <label className="block text-xs space-y-1">
-              <span className="text-mist/60">Longitude°</span>
+            <label className="block text-sm space-y-1.5">
+              <span className="text-mist/70 text-[13px]">Longitude°</span>
               <input
                 type="number"
                 step="0.0001"
@@ -328,7 +328,7 @@ export function ConfigDrawer({
                       draft.preset === 'search' ? 'search' : 'manual',
                   })
                 }
-                className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
+                className="w-full rounded-lg bg-black/55 border border-white/12 px-3 py-2.5 text-sm outline-none focus:border-gold/50 font-mono"
               />
             </label>
           </div>

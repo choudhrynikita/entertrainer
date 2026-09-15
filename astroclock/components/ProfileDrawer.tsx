@@ -21,15 +21,15 @@ export function ProfileDrawer({
   return (
     <>
       <div
-        className={`absolute inset-0 bg-black/55 z-[55] transition-opacity ${
+        className={`absolute inset-0 ac-scrim z-[55] transition-opacity ${
           open ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
         aria-hidden={!open}
       />
       <aside
-        className={`absolute inset-x-0 bottom-0 top-[8%] z-[60] glass rounded-t-2xl overflow-hidden flex flex-col drawer ${
-          open ? 'open' : ''
+        className={`absolute inset-x-0 bottom-0 top-[8%] z-[60] glass panel-solid rounded-t-2xl overflow-hidden flex flex-col drawer ${
+          open ? 'open' : 'pointer-events-none'
         }`}
         role="dialog"
         aria-label="Natal profile"

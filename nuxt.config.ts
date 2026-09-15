@@ -77,10 +77,10 @@ export default defineNuxtConfig({
       title: 'Entertrainer',
       script: [
         {
-          // Stamp the theme before first paint. Reads the stored choice first,
-          // then the OS, so a reader who picked dark never gets a flash of
-          // paper on the way in. stores/theme.ts owns it from mount onwards.
-          innerHTML: `(function(){try{var s=localStorage.getItem('et-theme');if(s==='dark'||s==='light'){document.documentElement.dataset.theme=s;return}}catch(e){}document.documentElement.dataset.theme=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';})();`
+          // Stamp theme before first paint: session override, else OS.
+          // Never localStorage — reopen always follows prefers-color-scheme.
+          // stores/theme.ts owns it from mount onwards.
+          innerHTML: `(function(){try{var s=sessionStorage.getItem('et-theme-session');if(s==='dark'||s==='light'){document.documentElement.dataset.theme=s;return}}catch(e){}try{localStorage.removeItem('et-theme')}catch(e){}document.documentElement.dataset.theme=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';})();`
         }
       ],
       meta: [

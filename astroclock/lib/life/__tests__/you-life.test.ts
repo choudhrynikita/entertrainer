@@ -7,6 +7,13 @@ import {
   pickDayMessage,
   allDayMessageStrings,
 } from '../dayMessages';
+import {
+  MOMENT_ADVICE,
+  momentAdviceBankSize,
+  allMomentAdviceStrings,
+  pickMomentAdvice,
+  categoryForMoment,
+} from '../momentAdvice';
 import { findBannedHits } from '../../astro/rules/prose';
 
 describe('livedSpan calendar math', () => {
@@ -66,6 +73,40 @@ describe('life facts + day messages banks', () => {
   it('climate categories all have lines', () => {
     for (const k of ['tense', 'fluid', 'peak', 'quiet', 'volatile'] as const) {
       expect(DAY_MESSAGES[k].length).toBeGreaterThanOrEqual(8);
+    }
+  });
+});
+
+describe('moment advice bank', () => {
+  it('bank ≥70 lines across outcome categories', () => {
+    expect(momentAdviceBankSize()).toBeGreaterThanOrEqual(70);
+    for (const [k, bank] of Object.entries(MOMENT_ADVICE)) {
+      expect(bank.length, k).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it('picks are deterministic for same sim + insights stub', () => {
+    const insights = {
+      moon: { waxing: true },
+      dasha: { maha: 'Venus', antar: 'Sun', tone: '' },
+      aspects: [],
+      climate: 'fluid',
+    } as any;
+    const t = Date.parse('2026-09-16T10:30:00+05:30');
+    expect(pickMomentAdvice(t, insights).text).toBe(
+      pickMomentAdvice(t, insights).text,
+    );
+  });
+
+  it('category reacts to soft/hard pressure', () => {
+    expect(categoryForMoment('fluid', 4, 0, true, 11)).toBe('soft_ask');
+    expect(categoryForMoment('tense', 0, 4, true, 11)).toBe('hard_brace');
+    expect(categoryForMoment('peak', 1, 1, true, 11)).toBe('peak_push');
+  });
+
+  it('visitor moment-advice copy passes banned-prose gate', () => {
+    for (const s of allMomentAdviceStrings()) {
+      expect(findBannedHits(s), s.slice(0, 80)).toEqual([]);
     }
   });
 });

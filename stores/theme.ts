@@ -2,17 +2,15 @@ import { defineStore } from 'pinia'
 
 export type Theme = 'dark' | 'light'
 
-const KEY = 'et-theme'
+/** Lasting key — cleared on init so reopen always follows the OS. */
+const LEGACY_KEY = 'et-theme'
+/** Explicit override for this tab/session only. */
+const SESSION_KEY = 'et-theme-session'
 
 /**
- * Light by default, because the publication is printed on paper.
- *
- * The previous version pinned dark and deleted any stored preference on every
- * boot — correct then, when the site was one dark WebGL stage and a light page
- * either side of it would have read as two different websites. The editorial
- * system has a real second printing (see [data-theme="dark"] in main.css), so
- * the choice goes back to the reader: OS preference on first visit, and an
- * explicit toggle that is remembered after that.
+ * Theme follows the OS on every fresh open / new tab.
+ * A manual toggle sticks only for the browsing session (sessionStorage),
+ * then reopen resets to prefers-color-scheme.
  */
 export const useThemeStore = defineStore('theme', {
   state: () => ({ theme: 'light' as Theme, explicit: false }),
@@ -40,33 +38,53 @@ export const useThemeStore = defineStore('theme', {
     toggle() {
       this.explicit = true
       const next: Theme = this.theme === 'dark' ? 'light' : 'dark'
-      if (import.meta.client) { try { localStorage.setItem(KEY, next) } catch {} }
-      this.set(next)
-    },
-
-    init() {
-      if (!import.meta.client) return
-      let stored: string | null = null
-      try { stored = localStorage.getItem(KEY) } catch {}
-
-      if (stored === 'dark' || stored === 'light') {
-        this.explicit = true
-        this.set(stored, false)
-      } else {
-        this._mq = window.matchMedia('(prefers-color-scheme: dark)')
-        this.set(this._mq.matches ? 'dark' : 'light', false)
-        // Follow the OS until the reader states a preference of their own.
-        this._mqListener = (e) => { if (!this.explicit) this.set(e.matches ? 'dark' : 'light') }
-        this._mq.addEventListener('change', this._mqListener)
+      if (import.meta.client) {
+        try { sessionStorage.setItem(SESSION_KEY, next) } catch {}
+        try { localStorage.removeItem(LEGACY_KEY) } catch {}
       }
+      this.set(next)
+      // Keep following OS only when not explicit — once toggled, session owns it.
+      this._detachMq()
     },
 
-    dispose() {
+    _detachMq() {
       if (this._mq && this._mqListener) {
         this._mq.removeEventListener('change', this._mqListener)
         this._mqListener = null
         this._mq = null
       }
+    },
+
+    _attachMq() {
+      this._detachMq()
+      this._mq = window.matchMedia('(prefers-color-scheme: dark)')
+      this._mqListener = (e) => {
+        if (!this.explicit) this.set(e.matches ? 'dark' : 'light')
+      }
+      this._mq.addEventListener('change', this._mqListener)
+    },
+
+    init() {
+      if (!import.meta.client) return
+      // Migrate: never restore lasting localStorage preference.
+      try { localStorage.removeItem(LEGACY_KEY) } catch {}
+
+      let session: string | null = null
+      try { session = sessionStorage.getItem(SESSION_KEY) } catch {}
+
+      if (session === 'dark' || session === 'light') {
+        this.explicit = true
+        this.set(session, false)
+        return
+      }
+
+      this.explicit = false
+      this._attachMq()
+      this.set(this._mq!.matches ? 'dark' : 'light', false)
+    },
+
+    dispose() {
+      this._detachMq()
     }
   }
 })

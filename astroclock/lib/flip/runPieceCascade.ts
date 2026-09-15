@@ -351,12 +351,6 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
     })
     .sort((a, b) => b.dist - a.dist);
 
-  /* Hide entire HUD chrome (not just actors) so no empty shell remains. */
-  if (hudRoot) {
-    hudRoot.style.visibility = 'hidden';
-    hudRoot.style.pointerEvents = 'none';
-    hidden.push(hudRoot);
-  }
   if (skyLayer) {
     skyLayer.style.visibility = 'hidden';
     hidden.push(skyLayer);
@@ -461,6 +455,13 @@ export function runPieceCascade(opts: RunCascadeOpts): CascadeHandles {
       animateClone(clone, from, to, delay, direction, FLIP_TOTAL_MS * 0.8),
     );
   });
+
+  /* Hide HUD chrome after clones are measured/positioned. */
+  if (hudRoot) {
+    hudRoot.style.visibility = 'hidden';
+    hudRoot.style.pointerEvents = 'none';
+    hidden.push(hudRoot);
+  }
 
   if (direction === 'to-sky' && skyLayer) {
     timers.push(

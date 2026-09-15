@@ -61,7 +61,7 @@ export function AstroClockApp() {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const skyLayerRef = useRef<HTMLDivElement | null>(null);
   const bauhausLayerRef = useRef<HTMLDivElement | null>(null);
-  const hudRef = useRef<HTMLElement | null>(null);
+  const hudRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(true);
   const [natalLons, setNatalLons] = useState<LonMap | null>(null);
   const [natalLerp, setNatalLerp] = useState(1);
@@ -131,11 +131,6 @@ export function AstroClockApp() {
       cascadeRef.current = null;
     };
   }, []);
-
-  useEffect(() => {
-    const root = stageRef.current?.parentElement ?? null;
-    hudRef.current = root?.querySelector('[data-ac-hud]') as HTMLElement | null;
-  });
 
   const prefersReducedMotion = useCallback(() => {
     if (typeof window === 'undefined') return false;
@@ -533,22 +528,24 @@ export function AstroClockApp() {
             </div>
           )}
           {view === 'dial' && face !== 'bauhaus' && (
-            <HUD
-              maha={maha}
-              antar={antar}
-              tithi={tithi}
-              lagna={lagna}
-              speeds={speeds}
-              selected={selected}
-              hrs={Math.round(hrsDisplay)}
-              live={live}
-              scrubHours={scrubHours}
-              scrubLabel={scrubHint(scrubHours)}
-              face={face}
-              onSelect={handleSelect}
-              onToggleLive={handleToggleLive}
-              onScrub={handleScrub}
-            />
+            <div ref={hudRef} className="ac-hud-host shrink-0">
+              <HUD
+                maha={maha}
+                antar={antar}
+                tithi={tithi}
+                lagna={lagna}
+                speeds={speeds}
+                selected={selected}
+                hrs={Math.round(hrsDisplay)}
+                live={live}
+                scrubHours={scrubHours}
+                scrubLabel={scrubHint(scrubHours)}
+                face={face}
+                onSelect={handleSelect}
+                onToggleLive={handleToggleLive}
+                onScrub={handleScrub}
+              />
+            </div>
           )}
         </div>
         {view === 'today' && (

@@ -23,19 +23,61 @@ import { getSocialImage, getSocialPreview, SITE_URL } from '~/content/social-pre
  * bar is the entire learning chrome, so public navigation and footer content
  * must never surround an active course screen.
  */
+const PRELOADER_SESSION_KEY = 'et-preloader-done'
+
+function isImmersivePath(path: string) {
+  return (
+    path.startsWith('/engage/astroclock') ||
+    path.startsWith('/engage/read-my-mind')
+  )
+}
+
+function markPreloaderDone() {
+  if (!import.meta.client) return
+  try {
+    sessionStorage.setItem(PRELOADER_SESSION_KEY, '1')
+  } catch { /* private mode */ }
+  try {
+    document.documentElement.dataset.preloader = 'done'
+  } catch { /* ignore */ }
+}
+
+function sessionAlreadySawPreloader() {
+  if (!import.meta.client) return false
+  try {
+    return sessionStorage.getItem(PRELOADER_SESSION_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 const r = useRoute()
 const theme = useThemeStore()
 const siteSettings = useSiteSettings()
-const showPreloader = ref(
-  !(
-    r.path.startsWith('/engage/astroclock') ||
-    r.path.startsWith('/engage/read-my-mind')
-  )
-)
+/*
+ * Setup-time value must match SSR: path only, never sessionStorage.
+ * Reading sessionStorage here would hydrate-mismatch on a tab that already
+ * saw the intro (PWA autoUpdate reload, back from AstroClock, etc.).
+ * The blocking head script stamps html[data-preloader=done] so CSS can hide
+ * the overlay before paint; onMounted then unmounts it for real.
+ */
+const showPreloader = ref(!isImmersivePath(r.path))
 
 function onPreloaderComplete() {
   showPreloader.value = false
+  markPreloaderDone()
 }
+
+watch(
+  () => r.path,
+  (path) => {
+    if (isImmersivePath(path)) {
+      showPreloader.value = false
+      markPreloaderDone()
+    }
+  },
+)
+
 const socialPreview = computed(() => getSocialPreview(r.path))
 const socialImage = computed(() => getSocialImage(socialPreview.value))
 
@@ -75,6 +117,10 @@ const bare = computed(() =>
 onMounted(() => {
   theme.init()
   siteSettings.hydrate()
+  if (isImmersivePath(r.path) || sessionAlreadySawPreloader()) {
+    showPreloader.value = false
+    markPreloaderDone()
+  }
 })
 onBeforeUnmount(() => theme.dispose())
 </script>
@@ -105,6 +151,10 @@ onBeforeUnmount(() => theme.dispose())
 <style>
 #app-root { min-height: 100dvh; background: var(--paper); display: flex; flex-direction: column; }
 #main { flex: 1; }
+
+/* Hide a remounted intro instantly (session already completed it).
+   The Vue tree may still contain EdPreloader until onMounted unmounts it. */
+html[data-preloader="done"] .preloader { display: none !important; }
 
 /* One page transition, and it is nearly nothing: a short fade with a few
    pixels of travel. A publication should feel like turning to a page, not like

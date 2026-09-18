@@ -1,9 +1,25 @@
 <!-- Theme-aware first-paint surface; Vue owns the Entertrainer logo sequence. -->
 <script>
-(function(){try{var s=localStorage.getItem('et-theme');if(s==='dark'||s==='light'){document.documentElement.dataset.theme=s;return}}catch(e){}document.documentElement.dataset.theme=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';})();
+(function(){
+  try {
+    if (sessionStorage.getItem('et-preloader-done') === '1') {
+      document.documentElement.dataset.preloader = 'done';
+    }
+  } catch (e) {}
+  try {
+    var s = localStorage.getItem('et-theme');
+    if (s === 'dark' || s === 'light') {
+      document.documentElement.dataset.theme = s;
+      return;
+    }
+  } catch (e) {}
+  document.documentElement.dataset.theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+})();
 </script>
 <div class="boot" role="status" aria-label="Preparing Entertrainer"></div>
 <style>
 .boot{position:fixed;inset:0;z-index:2000;background:#fff}
 html[data-theme="dark"] .boot{background:#0B0B0C}
+html[data-preloader="done"] .boot{display:none}
+html[data-preloader="done"] .preloader{display:none!important}
 </style>

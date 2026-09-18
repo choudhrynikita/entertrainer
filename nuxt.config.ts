@@ -80,7 +80,7 @@ export default defineNuxtConfig({
           // Stamp theme before first paint: session override, else OS.
           // Never localStorage — reopen always follows prefers-color-scheme.
           // stores/theme.ts owns it from mount onwards.
-          innerHTML: `(function(){try{var s=sessionStorage.getItem('et-theme-session');if(s==='dark'||s==='light'){document.documentElement.dataset.theme=s;return}}catch(e){}try{localStorage.removeItem('et-theme')}catch(e){}document.documentElement.dataset.theme=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';})();`
+          innerHTML: `(function(){try{if(sessionStorage.getItem('et-preloader-done')==='1')document.documentElement.dataset.preloader='done'}catch(e){}try{var s=sessionStorage.getItem('et-theme-session');if(s==='dark'||s==='light'){document.documentElement.dataset.theme=s;return}}catch(e){}try{localStorage.removeItem('et-theme')}catch(e){}document.documentElement.dataset.theme=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';})();`
         }
       ],
       meta: [

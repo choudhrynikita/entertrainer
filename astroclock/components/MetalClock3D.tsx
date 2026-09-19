@@ -730,9 +730,24 @@ export function MetalClock3D({
           <canvas
             ref={canvasRef}
             className="touch-none block ac-canvas-layer ac-metal3d-canvas"
-            aria-label="Metal day clock"
+            aria-label="Metal day clock — tap or swipe to return to sky dial"
             onPointerDown={(e) => {
+              if (e.isPrimary === false) return;
+              try {
+                e.currentTarget.setPointerCapture(e.pointerId);
+              } catch {
+                /* ignore */
+              }
+            }}
+            onPointerUp={(e) => {
               e.preventDefault();
+              try {
+                if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                }
+              } catch {
+                /* ignore */
+              }
               if (face === 'bauhaus') handleBack();
             }}
           />

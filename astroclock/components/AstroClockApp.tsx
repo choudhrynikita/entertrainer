@@ -486,7 +486,6 @@ export function AstroClockApp() {
                 face={face}
                 interactive={face === 'sky' || face === 'bauhaus'}
                 onFrame={onFrame}
-                onSelect={handleSelect}
                 onEmptyTap={face === 'sky' ? flipToBauhaus : undefined}
                 onFlipBack={flipToSky}
               />
@@ -515,7 +514,6 @@ export function AstroClockApp() {
                         selected={selected}
                         visible={visible && view === 'dial'}
                         onFrame={onFrame}
-                        onSelect={handleSelect}
                         onNatalLerpTick={() => {}}
                         onEmptyTap={face === 'sky' ? flipToBauhaus : undefined}
                         onCanvasEl={setSkyCanvas}

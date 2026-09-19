@@ -43,7 +43,7 @@ export interface SkyClock3DProps {
   face: DialFace;
   interactive?: boolean;
   onFrame: (cache: FrameCache) => void;
-  onSelect: (id: GrahaId) => void;
+  /** Sky-face tap/swipe — morph to the metal reverse. */
   onEmptyTap?: () => void;
   onFlipBack: () => void;
 }
@@ -317,7 +317,6 @@ export function SkyClock3D({
   face,
   interactive = true,
   onFrame,
-  onSelect,
   onEmptyTap,
   onFlipBack,
 }: SkyClock3DProps) {
@@ -333,7 +332,6 @@ export function SkyClock3D({
   const faceRef = useRef(face);
   const interactiveRef = useRef(interactive);
   const onFrameRef = useRef(onFrame);
-  const onSelectRef = useRef(onSelect);
   const onEmptyTapRef = useRef(onEmptyTap);
   const onFlipBackRef = useRef(onFlipBack);
   const beginFlipRef = useRef<((to: 'bauhaus' | 'sky') => void) | null>(null);
@@ -349,7 +347,6 @@ export function SkyClock3D({
   faceRef.current = face;
   interactiveRef.current = interactive;
   onFrameRef.current = onFrame;
-  onSelectRef.current = onSelect;
   onEmptyTapRef.current = onEmptyTap;
   onFlipBackRef.current = onFlipBack;
 
@@ -1454,52 +1451,53 @@ export function SkyClock3D({
       },
     };
 
-    const hitTest = (clientX: number, clientY: number): GrahaId | null => {
-      if (morphT > 0.4) return null;
-      const rect = canvas.getBoundingClientRect();
-      const x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      const y = -(((clientY - rect.top) / rect.height) * 2 - 1);
-      const mouse = new THREE.Vector2(x, y);
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouse, camera);
-      const beads = planets.map((p) => p.bead);
-      const hits = raycaster.intersectObjects(beads, false);
-      if (hits.length) {
-        const obj = hits[0].object;
-        const found = planets.find((p) => p.bead === obj);
-        return found?.id ?? null;
-      }
-      /* Ring proximity fallback in NDC→approx world */
-      let best: GrahaId | null = null;
-      let bestDist = Infinity;
-      for (const p of planets) {
-        const wp = new THREE.Vector3();
-        p.bead.getWorldPosition(wp);
-        wp.project(camera);
-        const dx = wp.x - x;
-        const dy = wp.y - y;
-        const d = Math.hypot(dx, dy);
-        if (d < 0.12 && d < bestDist) {
-          bestDist = d;
-          best = p.id;
-        }
-      }
-      return best;
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
+    const transformFromGesture = () => {
       if (!interactiveRef.current) return;
       const f = faceRef.current;
-      if (f === 'bauhaus') {
-        onFlipBackRef.current();
-        return;
+      if (f === 'bauhaus') onFlipBackRef.current();
+      else if (f === 'sky') onEmptyTapRef.current?.();
+    };
+
+    /* Dial gestures do one thing: transform. Tap and swipe both flip.
+       Planet picking is HUD / Today — never the face itself. */
+    let gesture: { id: number } | null = null;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!interactiveRef.current || e.isPrimary === false) return;
+      const f = faceRef.current;
+      if (f !== 'sky' && f !== 'bauhaus') return;
+      gesture = { id: e.pointerId };
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
       }
-      if (f !== 'sky') return;
-      const id = hitTest(e.clientX, e.clientY);
-      if (id) onSelectRef.current(id);
-      else onEmptyTapRef.current?.();
+    };
+    const endGesture = (e: PointerEvent) => {
+      if (!gesture || e.pointerId !== gesture.id) return;
+      gesture = null;
+      try {
+        if (canvas.hasPointerCapture(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
+      transformFromGesture();
+    };
+    const onPointerCancel = (e: PointerEvent) => {
+      if (!gesture || e.pointerId !== gesture.id) return;
+      gesture = null;
+      try {
+        if (canvas.hasPointerCapture(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
     };
     canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', endGesture);
+    canvas.addEventListener('pointercancel', onPointerCancel);
 
     const tick = () => {
       if (disposed) return;
@@ -1788,6 +1786,8 @@ export function SkyClock3D({
       }
       cancelAnimationFrame(raf);
       canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', endGesture);
+      canvas.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('resize', resize);
       ro?.disconnect();
       for (const m of ribbonMeshes) m.geometry.dispose();
@@ -1817,8 +1817,8 @@ export function SkyClock3D({
             className="touch-none block ac-canvas-layer ac-sky3d-canvas"
             aria-label={
               face === 'bauhaus'
-                ? 'Metal day clock — tap to return to sky dial'
-                : 'Sky dial — tap empty area to flip'
+                ? 'Metal day clock — tap or swipe to return to sky dial'
+                : 'Sky dial — tap or swipe to transform'
             }
             style={{ pointerEvents: stageInteractive ? 'auto' : 'none' }}
           />

@@ -21,7 +21,7 @@ Nothing beats your own will. And will may move the stars if they come across you
   {
     id: 'dial',
     title: 'The clock dial',
-    body: 'The dial shows live sidereal sky — signs, stars, planet hands, and your birth markers when saved. Scrub time to preview other hours.',
+    body: 'The dial shows live sidereal sky — signs, stars, planet hands, and your birth markers when saved. Tap or swipe the dial to transform it. Scrub time in the tray to preview other hours.',
   },
   {
     id: 'today',
